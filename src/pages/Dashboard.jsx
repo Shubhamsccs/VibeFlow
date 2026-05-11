@@ -105,7 +105,7 @@ export default function Dashboard() {
           value={`${stats.totalHours}h ${stats.totalMins}m`}
           subtext="Total duration"
           color="primary"
-          onClick={() => navigate("/tracker")}
+          onClick={() => navigate("/timeline")}
         />
         <StatCard
           icon={TrendingUp}

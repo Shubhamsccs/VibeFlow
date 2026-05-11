@@ -15,26 +15,6 @@ export const useTaskStore = create(
       openResetModal: () => set({ isResetModalOpen: true }),
       closeResetModal: () => set({ isResetModalOpen: false }),
       
-      // Timer State
-      activeTaskId: null,
-      timerState: {
-        mode: 'pomodoro', // 'pomodoro' or 'stopwatch'
-        status: 'idle', // 'idle', 'running', 'paused'
-        timeLeft: 25 * 60,
-        totalElapsed: 0,
-        startTime: null,
-      },
-      setTimerMode: (mode) => set((state) => ({ 
-        timerState: { ...state.timerState, mode, timeLeft: mode === 'pomodoro' ? 25 * 60 : 0 } 
-      })),
-      updateTimer: (timeLeft, totalElapsed) => set((state) => ({
-        timerState: { ...state.timerState, timeLeft, totalElapsed }
-      })),
-      setTimerStatus: (status) => set((state) => ({
-        timerState: { ...state.timerState, status, startTime: status === 'running' ? Date.now() : state.timerState.startTime }
-      })),
-      setActiveTask: (id) => set({ activeTaskId: id }),
-
       addTask: (task) =>
         set((state) => ({
           tasks: [
@@ -91,14 +71,6 @@ export const useTaskStore = create(
         }),
       resetStore: () => set({ 
         tasks: [], 
-        activeTaskId: null, 
-        timerState: {
-          mode: 'pomodoro',
-          status: 'idle',
-          timeLeft: 25 * 60,
-          totalElapsed: 0,
-          startTime: null,
-        }
       }),
     }),
     {

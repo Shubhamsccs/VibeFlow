@@ -17,10 +17,9 @@ export default function Sidebar() {
   const navItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, shortcut: "1" },
     { name: "Tasks", path: "/tasks", icon: CheckSquare, shortcut: "2" },
-    { name: "Tracker", path: "/tracker", icon: Timer, shortcut: "3" },
-    { name: "Timeline", path: "/timeline", icon: History, shortcut: "4" },
-    { name: "Calendar", path: "/calendar", icon: Calendar, shortcut: "5" },
-    { name: "Analytics", path: "/analytics", icon: LineChart, shortcut: "6" },
+    { name: "Timeline", path: "/timeline", icon: History, shortcut: "3" },
+    { name: "Calendar", path: "/calendar", icon: Calendar, shortcut: "4" },
+    { name: "Analytics", path: "/analytics", icon: LineChart, shortcut: "5" },
   ];
 
   return (
