@@ -343,7 +343,7 @@ function TaskModalInner({ onClose, taskToEdit }) {
               type="submit" 
               className="px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-primary text-white hover:scale-105 transition-all shadow-xl shadow-brand-primary/20"
             >
-              {isEditing ? "Save Changes" : "Create Activity"}
+              {isEditing ? (formData.status === 'done' ? "Complete" : "Save Changes") : "Create Activity"}
             </button>
           </div>
         </form>
