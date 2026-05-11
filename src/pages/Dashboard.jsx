@@ -36,17 +36,12 @@ export default function Dashboard() {
       ? (moodTasks.reduce((acc, t) => acc + (t.mood || 0), 0) / moodTasks.length).toFixed(1)
       : "0.0";
 
-    // 3. Focus Duration Score (Based on Average Daily Goal of 6h)
-    const uniqueDays = new Set(completedTasks.map(t => t.completedAt?.split('T')[0] || t.dueDate)).size || 1;
-    const totalGoalMinutes = uniqueDays * 6 * 60;
-    const durationScore = Math.min((totalDuration / totalGoalMinutes) * 100, 100);
-
     const moodScore = (parseFloat(avgMood) / 5) * 100;
-
+    
+    // Revised Productivity: 70% Completion consistency, 30% Mindset (Mood)
     const finalProductivity = Math.round(
-      (completionScore * 0.4) + 
-      (durationScore * 0.4) + 
-      (moodScore * 0.2)
+      (completionScore * 0.7) + 
+      (moodScore * 0.3)
     );
 
     return {
@@ -111,7 +106,7 @@ export default function Dashboard() {
           icon={TrendingUp}
           label="Productivity"
           value={`${stats.productivity}%`}
-          subtext="Mood & Time Weighted"
+          subtext="Mood & Completion Weighted"
           color="secondary"
           onClick={() => navigate("/analytics?tab=tasks")}
         />
