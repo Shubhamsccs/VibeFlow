@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle, Flame, Clock, TrendingUp, Smile } from "lucide-react";
+import { CheckCircle, Flame, Clock, Zap, Smile } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useMemo } from "react";
 
@@ -103,7 +103,7 @@ export default function Dashboard() {
           onClick={() => navigate("/timeline")}
         />
         <StatCard
-          icon={TrendingUp}
+          icon={Zap}
           label="Productivity"
           value={`${stats.productivity}%`}
           subtext="Mood & Completion Weighted"
@@ -126,7 +126,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
-            <TrendingUp className="w-10 h-10 text-slate-700 mb-3" />
+            <Zap className="w-10 h-10 text-slate-700 mb-3" />
             <p className="text-slate-500 text-sm font-medium">
               Activity Chart Visualization
             </p>
@@ -219,7 +219,7 @@ function StatCard({
           <h3 className="text-3xl font-heading font-bold mb-1 text-white tracking-tight">
             {value}
           </h3>
-          <TrendingUp className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity ${colorMap[color].split(' ')[0]}`} />
+          <Zap className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity ${colorMap[color].split(' ')[0]}`} />
         </div>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
           {label}
