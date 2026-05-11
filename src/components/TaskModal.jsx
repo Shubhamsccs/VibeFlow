@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { X, Calendar, AlertCircle, Columns, Clock, Play, Square, Smile, ChevronDown } from "lucide-react";
+import { X, Calendar, AlertCircle, Columns, Clock, Play, Square, Smile, ChevronDown, Trophy } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
+import confetti from "canvas-confetti";
 
 const COLUMN_OPTIONS = [
   { id: "college", label: "College Work" },
@@ -156,9 +157,17 @@ function TimePicker({ value, onChange, label, icon: Icon }) {
 
 function TaskModalInner({ onClose, taskToEdit }) {
   const { addTask, updateTask } = useTaskStore();
-  const [formData, setFormData] = useState(() =>
-    getInitialFormData(taskToEdit),
-  );
+  const [formData, setFormData] = useState(() => {
+    const data = getInitialFormData(taskToEdit);
+    // If marking as done and no times set, pre-fill with current time
+    if (data.status === 'done' && !data.startTime) {
+      const now = new Date();
+      data.endTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const start = new Date(now.getTime() - 60 * 60 * 1000); // Default 1h back
+      data.startTime = `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`;
+    }
+    return data;
+  });
   const isEditing = taskToEdit && taskToEdit.id;
 
   // Auto-calculate duration when start or end time changes
@@ -178,6 +187,16 @@ function TaskModalInner({ onClose, taskToEdit }) {
       category: formData.category || formData.status,
     };
 
+    if (taskData.status === 'done' && !taskData.completedAt) {
+      taskData.completedAt = new Date().toISOString();
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ["#8b5cf6", "#ec4899", "#22c55e"],
+      });
+    }
+
     if (isEditing) {
       updateTask(taskToEdit.id, taskData);
     } else {
@@ -191,7 +210,7 @@ function TaskModalInner({ onClose, taskToEdit }) {
       <div className="bg-slate-900 border border-slate-800 rounded-4xl w-full max-w-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden my-auto animate-slide-in">
         <div className="flex justify-between items-center p-8 border-b border-slate-800/50">
           <h2 className="text-2xl font-black text-white tracking-tighter uppercase">
-            {isEditing ? "Edit Activity" : "New Activity"}
+            {isEditing ? (formData.status === 'done' ? "Complete Activity" : "Edit Activity") : "New Activity"}
           </h2>
           <button
             onClick={onClose}

@@ -23,11 +23,17 @@ export default function TimeTracker() {
     setTimerMode, 
     setTimerStatus, 
     updateTimer,
-    addTask
+    addTask,
+    updateTask
   } = useTaskStore();
 
   const [localMood, setLocalMood] = useState(3);
   const [showMoodCapture, setShowMoodCapture] = useState(false);
+  const [completionData, setCompletionData] = useState({
+    startTime: '',
+    endTime: '',
+    duration: ''
+  });
 
   const activeTask = tasks.find(t => t.id === activeTaskId);
   const availableTasks = tasks.filter(t => t.status !== 'done');
@@ -62,25 +68,42 @@ export default function TimeTracker() {
 
   const handleEndSession = () => {
     setTimerStatus('idle');
+    const now = new Date();
+    const start = new Date(now.getTime() - timerState.totalElapsed * 1000);
+    
+    const formatClockTime = (date) => {
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    };
+
+    setCompletionData({
+      startTime: formatClockTime(start),
+      endTime: formatClockTime(now),
+      duration: formatTime(timerState.totalElapsed)
+    });
     setShowMoodCapture(true);
   };
 
   const saveSession = () => {
-    const durationStr = `${Math.floor(timerState.totalElapsed / 3600).toString().padStart(2, '0')}:${Math.floor((timerState.totalElapsed % 3600) / 60).toString().padStart(2, '0')}:00`;
-    
     const sessionData = {
-      title: activeTask ? `Focus: ${activeTask.title}` : "Quick Focus Session",
-      duration: durationStr,
+      title: activeTask ? activeTask.title : "Quick Focus Session",
+      duration: completionData.duration,
+      startTime: completionData.startTime,
+      endTime: completionData.endTime,
       status: 'done',
       mood: localMood,
       category: activeTask?.category || 'myspace',
-      dueDate: new Date().toISOString().split('T')[0],
       completedAt: new Date().toISOString()
     };
 
-    addTask(sessionData);
+    if (activeTaskId) {
+      updateTask(activeTaskId, sessionData);
+    } else {
+      addTask(sessionData);
+    }
+    
     setShowMoodCapture(false);
     updateTimer(timerState.mode === 'pomodoro' ? 25 * 60 : 0, 0);
+    setActiveTask(null); // Clear active task after completion
   };
 
   const progress = timerState.mode === 'pomodoro' 
@@ -295,16 +318,16 @@ export default function TimeTracker() {
       {/* Mood Capture Modal (Modern) */}
       {showMoodCapture && (
         <div className="fixed top-0 left-0 w-screen h-screen z-9999 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="glass-panel w-full max-w-sm p-8 rounded-[48px] border-slate-700 shadow-3xl text-center">
-            <div className="w-24 h-24 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-8 relative">
+          <div className="glass-panel w-full max-w-md p-10 rounded-[48px] border-slate-700 shadow-3xl text-center bg-slate-900/90">
+            <div className="w-20 h-20 bg-brand-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6 relative">
                <div className="absolute inset-0 bg-brand-primary/20 blur-xl rounded-full" />
-               <Zap className="w-12 h-12 text-brand-primary relative z-10" />
+               <Trophy className="w-10 h-10 text-brand-primary relative z-10" />
             </div>
             
-            <h2 className="text-3xl font-black text-white tracking-tighter mb-2 uppercase">Session Ended</h2>
-            <p className="text-slate-500 text-sm font-medium mb-10">How was your focus energy?</p>
+            <h2 className="text-3xl font-black text-white tracking-tighter mb-1 uppercase">Success!</h2>
+            <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-8">How was your focus energy?</p>
 
-            <div className="flex justify-between gap-2 mb-10">
+            <div className="flex justify-between gap-2 mb-8">
               {[1, 2, 3, 4, 5].map(score => (
                 <button
                   key={score}
@@ -312,7 +335,7 @@ export default function TimeTracker() {
                   className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold transition-all ${
                     localMood === score 
                       ? 'bg-brand-primary text-white scale-110 shadow-2xl shadow-brand-primary/50' 
-                      : 'bg-slate-900 text-slate-600 hover:text-slate-400 hover:bg-slate-850'
+                      : 'bg-slate-950 text-slate-600 hover:text-slate-400 border border-slate-800'
                   }`}
                 >
                   {score}
@@ -320,11 +343,42 @@ export default function TimeTracker() {
               ))}
             </div>
 
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-left">
+                <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">Start Time</p>
+                <input 
+                  type="time" 
+                  value={completionData.startTime}
+                  onChange={(e) => setCompletionData({...completionData, startTime: e.target.value})}
+                  className="bg-transparent text-white font-black text-sm w-full outline-none"
+                />
+              </div>
+              <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-left">
+                <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">End Time</p>
+                <input 
+                  type="time" 
+                  value={completionData.endTime}
+                  onChange={(e) => setCompletionData({...completionData, endTime: e.target.value})}
+                  className="bg-transparent text-white font-black text-sm w-full outline-none"
+                />
+              </div>
+              <div className="col-span-2 bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-left">
+                <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">Session Duration</p>
+                <input 
+                  type="text" 
+                  value={completionData.duration}
+                  onChange={(e) => setCompletionData({...completionData, duration: e.target.value})}
+                  className="bg-transparent text-white font-black text-sm w-full outline-none"
+                  placeholder="e.g. 1h 30m"
+                />
+              </div>
+            </div>
+
             <button 
               onClick={saveSession}
-              className="w-full py-5 rounded-3xl bg-white text-black font-black text-sm uppercase tracking-[0.2em] hover:bg-brand-primary hover:text-white transition-all active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-5 rounded-3xl bg-white text-black font-black text-sm uppercase tracking-[0.2em] hover:bg-brand-primary hover:text-white transition-all active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
             >
-              Complete Session <ChevronRight className="w-5 h-5" />
+              Log to History <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>

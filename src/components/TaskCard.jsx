@@ -29,13 +29,8 @@ export default function TaskCard({ task, index, columnAccent }) {
 
   const handleComplete = (e) => {
     e.stopPropagation();
-    updateTask(task.id, { status: "done" });
-    confetti({
-      particleCount: 80,
-      spread: 60,
-      origin: { y: 0.7 },
-      colors: ["#25d366", "#0000ff", "#ff0000"],
-    });
+    // Open modal in completion mode by pre-setting status to done
+    openTaskModal({ ...task, status: "done" });
   };
 
   const handleDelete = (e) => {
