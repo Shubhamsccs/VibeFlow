@@ -69,8 +69,26 @@ export const useTaskStore = create(
 
           return { tasks: newTasks };
         }),
+      notes: [{ id: 'general', title: 'General', content: '' }],
+      activeNoteId: 'general',
+      setActiveNoteId: (id) => set({ activeNoteId: id }),
+      addNote: (title) => set((state) => ({
+        notes: [...state.notes, { id: crypto.randomUUID(), title, content: '' }]
+      })),
+      updateNote: (id, content) => set((state) => ({
+        notes: state.notes.map(n => n.id === id ? { ...n, content } : n)
+      })),
+      deleteNote: (id) => set((state) => {
+        const newNotes = state.notes.filter(n => n.id !== id);
+        return {
+          notes: newNotes,
+          activeNoteId: state.activeNoteId === id ? (newNotes[0]?.id || null) : state.activeNoteId
+        };
+      }),
       resetStore: () => set({ 
         tasks: [], 
+        notes: [{ id: 'general', title: 'General', content: '' }],
+        activeNoteId: 'general'
       }),
     }),
     {

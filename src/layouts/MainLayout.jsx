@@ -26,10 +26,9 @@ export default function MainLayout() {
       const shortcuts = {
         '1': '/dashboard',
         '2': '/tasks',
-        '3': '/tracker',
-        '4': '/timeline',
-        '5': '/calendar',
-        '6': '/analytics',
+        '3': '/timeline',
+        '4': '/calendar',
+        '5': '/analytics',
       };
 
       if (shortcuts[e.key]) {

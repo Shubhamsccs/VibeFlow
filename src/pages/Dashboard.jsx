@@ -1,11 +1,13 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle, Flame, Clock, Zap, Smile } from "lucide-react";
+import { CheckCircle, Flame, Clock, Trophy, Smile, Zap, StickyNote, Plus, Trash2 } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useMemo } from "react";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const tasks = useTaskStore((state) => state.tasks);
+  const { notes, activeNoteId, setActiveNoteId, addNote, updateNote, deleteNote } = useTaskStore();
+  const activeNote = notes.find(n => n.id === activeNoteId) || notes[0];
 
   const stats = useMemo(() => {
     const parseDuration = (duration) => {
@@ -61,7 +63,7 @@ export default function Dashboard() {
   }, [tasks]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-4xl font-black text-white tracking-tighter">
@@ -103,39 +105,79 @@ export default function Dashboard() {
           onClick={() => navigate("/timeline")}
         />
         <StatCard
-          icon={Zap}
+          icon={Trophy}
           label="Productivity"
           value={`${stats.productivity}%`}
           subtext="Mood & Completion Weighted"
-          color="secondary"
+          color="success"
           onClick={() => navigate("/analytics?tab=tasks")}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel rounded-xl p-8 bg-slate-900/20">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-xl font-bold">Activity Overview</h2>
-            <div className="flex gap-2">
-              <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                <div className="w-2 h-2 rounded-full bg-brand-primary" /> Focus
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                <div className="w-2 h-2 rounded-full bg-brand-success" /> Done
-              </span>
+        <div className="lg:col-span-2 glass-panel rounded-xl p-8 bg-slate-900/20 flex flex-col min-h-[450px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-brand-primary/10 text-brand-primary">
+                <StickyNote className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight">Mind Dump</h2>
+            </div>
+            
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+              {notes.map(note => (
+                <button
+                  key={note.id}
+                  onClick={() => setActiveNoteId(note.id)}
+                  className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
+                    activeNoteId === note.id 
+                      ? "bg-brand-primary/20 border-brand-primary text-brand-primary" 
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {note.title}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  const title = prompt("Pad Name:");
+                  if (title) addNote(title);
+                }}
+                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all"
+                title="New Pad"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
-          <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
-            <Zap className="w-10 h-10 text-slate-700 mb-3" />
-            <p className="text-slate-500 text-sm font-medium">
-              Activity Chart Visualization
-            </p>
-            <button
-              onClick={() => navigate("/analytics")}
-              className="mt-4 text-xs font-bold text-brand-primary uppercase tracking-widest hover:underline"
-            >
-              View Detailed Analytics
-            </button>
+          
+          <div className="flex-1 relative flex flex-col">
+            {activeNote ? (
+              <>
+                <textarea
+                  value={activeNote.content}
+                  onChange={(e) => updateNote(activeNote.id, e.target.value)}
+                  placeholder={`Write your thoughts in "${activeNote.title}"...`}
+                  className="flex-1 w-full bg-slate-950/40 border border-slate-800/50 rounded-2xl p-6 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-brand-primary/50 transition-all resize-none font-medium leading-relaxed text-sm custom-scrollbar"
+                />
+                {activeNote.id !== 'general' && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Delete this pad?")) deleteNote(activeNote.id);
+                    }}
+                    className="absolute bottom-4 right-4 p-3 rounded-xl bg-slate-900/80 text-slate-600 hover:text-brand-danger transition-all border border-slate-800 backdrop-blur-sm"
+                    title="Delete Pad"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
+                <StickyNote className="w-10 h-10 mb-2 opacity-20" />
+                <p>Select or create a pad to start writing.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -219,7 +261,6 @@ function StatCard({
           <h3 className="text-3xl font-heading font-bold mb-1 text-white tracking-tight">
             {value}
           </h3>
-          <Zap className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity ${colorMap[color].split(' ')[0]}`} />
         </div>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
           {label}
