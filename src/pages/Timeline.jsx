@@ -84,7 +84,7 @@ export default function Timeline() {
   const groupedTasks = useMemo(() => {
     const groups = {};
     finishedTasks.forEach(task => {
-      const dateKey = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt.split('T')[0];
+      const dateKey = task.dueDate || task.createdAt.split('T')[0];
       if (!groups[dateKey]) {
         groups[dateKey] = {
           date: dateKey,
