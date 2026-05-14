@@ -15,7 +15,7 @@ import {
   Filler,
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-import { CheckCircle, Flame, Clock, TrendingUp, Smile } from "lucide-react";
+import { CheckCircle, Flame, Clock, TrendingUp, Smile, AlertCircle } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 
 ChartJS.register(
@@ -36,6 +36,7 @@ const TABS = [
   { id: "streaks", label: "Streaks", icon: Flame, color: "#ff8c00" },
   { id: "duration", label: "Activity Time", icon: Clock, color: "#0000ff" },
   { id: "mood", label: "Mood Analysis", icon: Smile, color: "#ff0000" },
+  { id: "priority", label: "Priority Analysis", icon: AlertCircle, color: "#ff00ff" },
 ];
 
 const baseChartOptions = {
@@ -127,6 +128,7 @@ export default function Analytics() {
         {activeTab === "streaks" && <StreaksAnalytics tasks={tasks} />}
         {activeTab === "duration" && <DurationAnalytics tasks={tasks} />}
         {activeTab === "mood" && <MoodAnalytics tasks={tasks} />}
+        {activeTab === "priority" && <PriorityAnalytics tasks={tasks} />}
       </div>
     </div>
   );
@@ -500,6 +502,87 @@ function MiniStat({ label, value, danger = false }) {
       <p className={`text-2xl font-heading font-bold ${danger ? "text-brand-danger" : "text-slate-100"}`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+function PriorityAnalytics({ tasks }) {
+  const completedTasks = tasks.filter(t => t.status === 'done');
+  
+  const priorities = {
+    high: completedTasks.filter(t => (t.priority || 'medium') === 'high').length,
+    medium: completedTasks.filter(t => (t.priority || 'medium') === 'medium').length,
+    low: completedTasks.filter(t => (t.priority || 'medium') === 'low').length,
+  };
+
+  const totalHigh = tasks.filter(t => (t.priority || 'medium') === 'high').length;
+  const highCompletionRate = totalHigh > 0 ? Math.round((priorities.high / totalHigh) * 100) : 0;
+
+  const PRIORITY_COLORS = {
+    high: '#ff0000',   // Red
+    medium: '#ffd700', // Yellow
+    low: '#25d366'     // Green
+  };
+
+  const chartData = {
+    labels: ['High', 'Medium', 'Low'],
+    datasets: [
+      {
+        data: [priorities.high, priorities.medium, priorities.low],
+        backgroundColor: [PRIORITY_COLORS.high, PRIORITY_COLORS.medium, PRIORITY_COLORS.low],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MiniStat label="High Priority Done" value={priorities.high} danger={true} />
+        <MiniStat label="High Priority Rate" value={`${highCompletionRate}%`} />
+        <MiniStat label="Medium Priority Done" value={priorities.medium} />
+        <MiniStat label="Low Priority Done" value={priorities.low} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
+          <h2 className="text-lg font-bold mb-4">Completed Priorities</h2>
+          <div className="flex-1 min-h-0 relative">
+            {completedTasks.length > 0 ? (
+               <Doughnut data={chartData} options={doughnutOptions} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-600 absolute inset-0">
+                <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
+                <p>Complete tasks to see priority distribution.</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
+          <h2 className="text-lg font-bold mb-4">Priority Distribution</h2>
+          <div className="flex-1 min-h-0 relative">
+            {completedTasks.length > 0 ? (
+               <Bar 
+                 data={{
+                   labels: ['High', 'Medium', 'Low'],
+                   datasets: [{
+                     label: 'Completed Tasks',
+                     data: [priorities.high, priorities.medium, priorities.low],
+                     backgroundColor: [PRIORITY_COLORS.high, PRIORITY_COLORS.medium, PRIORITY_COLORS.low],
+                     borderRadius: 6
+                   }]
+                 }}
+                 options={baseChartOptions}
+               />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-600 absolute inset-0">
+                <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
+                <p>Complete tasks to see priority distribution.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

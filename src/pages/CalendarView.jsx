@@ -23,7 +23,7 @@ export default function CalendarView() {
 
   const getHeatmapColor = (day) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const completed = tasks.filter(t => (t.completedAt?.split('T')[0] || t.dueDate) === dateStr && t.status === 'done');
+    const completed = tasks.filter(t => (t.dueDate || t.createdAt?.split('T')[0]) === dateStr && t.status === 'done');
     const mins = completed.reduce((acc, t) => acc + parseDuration(t.duration), 0);
     const hours = mins / 60;
     if (hours === 0) return 'transparent';
