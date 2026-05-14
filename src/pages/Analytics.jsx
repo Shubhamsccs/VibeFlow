@@ -229,7 +229,7 @@ function StreaksAnalytics({ tasks }) {
     if (completedTasks.length === 0) return { current: 0, longest: 0, activeDays: 0 };
 
     // Get all unique active dates (YYYY-MM-DD)
-    const activeDates = [...new Set(completedTasks.map(t => t.completedAt?.split('T')[0] || t.dueDate || t.createdAt?.split('T')[0]))]
+    const activeDates = [...new Set(completedTasks.map(t => t.dueDate || t.createdAt?.split('T')[0]))]
       .sort((a, b) => new Date(b) - new Date(a)); // Sort descending (newest first)
 
     const activeDays = activeDates.length;
@@ -338,8 +338,8 @@ function DurationAnalytics({ tasks }) {
 
   const getTasksForDay = (day) => {
     return tasks.filter(task => {
-      // Prioritize completedAt, then dueDate, then createdAt
-      const taskDateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0];
+      // Use dueDate, then createdAt
+      const taskDateStr = task.dueDate || task.createdAt?.split('T')[0];
       try {
         const taskDate = parseISO(taskDateStr);
         return isSameDay(taskDate, day);
@@ -368,7 +368,7 @@ function DurationAnalytics({ tasks }) {
     return tasks
       .filter(t => {
         if (t.status !== 'done') return false;
-        const date = new Date(t.completedAt || t.dueDate || t.createdAt);
+        const date = new Date(t.dueDate || t.createdAt);
         return date >= week.start && date <= week.end;
       })
       .reduce((acc, t) => acc + parseDuration(t.duration), 0) / 60;
@@ -379,7 +379,7 @@ function DurationAnalytics({ tasks }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MiniStat label="Total Time Spent" value={`${hours}h ${mins}m`} />
         <MiniStat label="Avg per Activity" value={tasks.filter(t => t.status === 'done').length ? `${Math.round(totalDuration/tasks.filter(t => t.status === 'done').length)}m` : '0m'} />
-        <MiniStat label="Active Days" value={new Set(tasks.filter(t => t.status === 'done').map(t => t.createdAt?.split('T')[0])).size} />
+        <MiniStat label="Active Days" value={new Set(tasks.filter(t => t.status === 'done').map(t => t.dueDate || t.createdAt?.split('T')[0])).size} />
         <MiniStat label="Goal Status" value="In Progress" />
       </div>
 
