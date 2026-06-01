@@ -25,6 +25,21 @@ export default function Dashboard() {
     const completedTasks = tasks.filter((t) => t.status === "done");
     
     const totalDuration = completedTasks.reduce((acc, t) => acc + parseDuration(t.duration), 0);
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const dailyDuration = completedTasks
+      .filter((t) => {
+        let taskDate = '';
+        if (t.completedAt) {
+          taskDate = new Date(t.completedAt).toLocaleDateString('en-CA');
+        } else if (t.dueDate) {
+          taskDate = t.dueDate;
+        } else if (t.createdAt) {
+          taskDate = new Date(t.createdAt).toLocaleDateString('en-CA');
+        }
+        return taskDate === todayStr;
+      })
+      .reduce((acc, t) => acc + parseDuration(t.duration), 0);
     
     // 1. Completion Score (Full History)
     const completionScore = tasks.length === 0 ? 0 : (completedTasks.reduce((acc, t) => {
@@ -48,8 +63,8 @@ export default function Dashboard() {
 
     return {
       completed: completedTasks.length,
-      totalHours: Math.floor(totalDuration / 60),
-      totalMins: totalDuration % 60,
+      dailyHours: Math.floor(dailyDuration / 60),
+      dailyMins: dailyDuration % 60,
       avgMood,
       productivity: finalProductivity,
     };
@@ -99,8 +114,8 @@ export default function Dashboard() {
         <StatCard
           icon={Clock}
           label="Activity Time"
-          value={`${stats.totalHours}h ${stats.totalMins}m`}
-          subtext="Total duration"
+          value={`${stats.dailyHours}h ${stats.dailyMins}m`}
+          subtext="Daily duration"
           color="primary"
           onClick={() => navigate("/timeline")}
         />
