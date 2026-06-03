@@ -7,7 +7,8 @@ import {
   History,
   Timer,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  Trophy
 } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 
@@ -20,6 +21,7 @@ export default function Sidebar() {
     { name: "Timeline", path: "/timeline", icon: History, shortcut: "3" },
     { name: "Calendar", path: "/calendar", icon: Calendar, shortcut: "4" },
     { name: "Analytics", path: "/analytics", icon: LineChart, shortcut: "5" },
+    { name: "Rewards", path: "/rewards", icon: Trophy, shortcut: "6" },
   ];
 
   return (
