@@ -665,8 +665,12 @@ function TaskRewardsTab() {
         const count = categoryCounts[cat.id] ?? 0;
         const { cycle, countInCycle } = getCycleInfo(count);
         const rewards = categoryRewards(cat.id, cycle);
-        const nextReward = rewards.find(r => !claimedRewards.includes(r.id));
-        const progress = nextReward ? Math.min(100, (countInCycle / nextReward.target) * 100) : 100;
+        // Rewards ready to claim (reached target but not yet claimed)
+        const claimableRewards = rewards.filter(r => !claimedRewards.includes(r.id) && countInCycle >= r.target);
+        // Next reward that's genuinely still locked (not yet reached)
+        const nextLockedReward = rewards.find(r => !claimedRewards.includes(r.id) && countInCycle < r.target);
+        const allDone = !nextLockedReward && claimableRewards.length === 0;
+        const progress = nextLockedReward ? Math.min(100, (countInCycle / nextLockedReward.target) * 100) : 100;
 
         return (
           <div key={cat.id} className="rounded-2xl border overflow-hidden transition-all"
@@ -695,18 +699,33 @@ function TaskRewardsTab() {
                 </div>
               </div>
 
-              {/* Mini progress to next reward */}
-              {nextReward && (
+              {/* Mini progress / claim status */}
+              {claimableRewards.length > 0 && (
+                <div className="text-right">
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <p className="text-xs font-black text-emerald-400">
+                      {claimableRewards.length} reward{claimableRewards.length > 1 ? "s" : ""} ready!
+                    </p>
+                  </div>
+                  {nextLockedReward && (
+                    <p className="text-[9px] text-slate-600 font-bold uppercase tracking-wider mt-0.5">
+                      next lock: {nextLockedReward.target - countInCycle} to go
+                    </p>
+                  )}
+                </div>
+              )}
+              {!claimableRewards.length && nextLockedReward && (
                 <div className="text-right">
                   <p className="text-xs font-black" style={{ color: cat.accent }}>
-                    {nextReward.target - countInCycle} to go
+                    {nextLockedReward.target - countInCycle} to go
                   </p>
                   <p className="text-[9px] text-slate-600 font-bold uppercase tracking-wider mt-0.5">
-                    next: {nextReward.title}
+                    next: {nextLockedReward.title}
                   </p>
                 </div>
               )}
-              {!nextReward && (
+              {allDone && (
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-black text-amber-400">Cycle {cycle} complete!</span>
