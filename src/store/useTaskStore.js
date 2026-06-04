@@ -280,8 +280,9 @@ export const useTaskStore = create(
         // Build a Set of current task IDs for fast lookup
         const taskIdSet = new Set(state.tasks.map(t => t.id));
 
-        // Deduplicate focusHistory: keep at most ONE entry per taskId (manual entries for completed tasks).
+        // Deduplicate focusHistory: keep at most ONE manual entry per taskId.
         // Remove entries for tasks that have been deleted.
+        // Track taskIds that already have ANY entry (manual or timer).
         const seenTaskIds = new Set();
         const updatedHistory = [];
         for (const item of state.focusHistory) {
@@ -292,12 +293,42 @@ export const useTaskStore = create(
           if (item.isManual) {
             if (seenTaskIds.has(item.taskId)) continue;
             seenTaskIds.add(item.taskId);
+          } else {
+            // Timer entry — always keep, just track the taskId
+            seenTaskIds.add(item.taskId);
           }
 
           // Update minutes to match the task's current planned duration
           const task = state.tasks.find(t => t.id === item.taskId);
           const plannedMins = task ? parseMins(task.duration) : item.minutes;
           updatedHistory.push({ ...item, minutes: plannedMins });
+        }
+
+        // ── Backfill missing entries for historical completed tasks ──────────
+        // Any 'done' task with NO focusHistory entry at all (completed before
+        // the focus timer existed, tracked via offline stopwatch) gets a
+        // synthetic manual entry so planned hours === actual hours in Analytics.
+        for (const task of state.tasks) {
+          if (task.status !== 'done') continue;
+          if (seenTaskIds.has(task.id)) continue; // already has an entry — skip
+
+          const plannedMins = parseMins(task.duration);
+          const dateStr = task.completedAt?.split('T')[0]
+            || task.dueDate
+            || task.createdAt?.split('T')[0]
+            || todayStr();
+
+          updatedHistory.push({
+            id: crypto.randomUUID(),
+            taskId: task.id,
+            taskTitle: task.title,
+            category: normalizeStatus(task.category || task.status || 'college'),
+            date: dateStr,
+            minutes: plannedMins,
+            mood: task.mood || 4,
+            isManual: true,
+          });
+          seenTaskIds.add(task.id);
         }
 
         return {
