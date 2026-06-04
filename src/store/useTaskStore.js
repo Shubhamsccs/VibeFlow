@@ -248,7 +248,7 @@ export const useTaskStore = create(
       dailyFocusTasks: [],
       kickoffCompletedDate: null,
       windDownCompletedDate: null,
-      focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
+      focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false },
       focusHistory: [],
 
       syncPlannedAndActualDurations: () => set((state) => {
@@ -508,8 +508,8 @@ export const useTaskStore = create(
       })),
 
       // Focus Timer Actions
-      startFocus: (taskId, durationSeconds = 1500) => set({
-        focusSession: { activeTaskId: taskId, secondsElapsed: 0, isPaused: false, duration: durationSeconds }
+      startFocus: (taskId, durationSeconds = 1500, isStopwatch = false) => set({
+        focusSession: { activeTaskId: taskId, secondsElapsed: 0, isPaused: false, duration: durationSeconds, isStopwatch }
       }),
       pauseFocus: () => set((state) => ({
         focusSession: { ...state.focusSession, isPaused: !state.focusSession.isPaused }
@@ -518,9 +518,12 @@ export const useTaskStore = create(
         const session = state.focusSession;
         if (session.isPaused || !session.activeTaskId) return {};
         const nextSeconds = session.secondsElapsed + 1;
+        // Stopwatch mode: count up forever, never auto-pause
+        if (session.isStopwatch) {
+          return { focusSession: { ...session, secondsElapsed: nextSeconds } };
+        }
+        // Timer mode: pause when countdown reaches 0
         if (nextSeconds >= session.duration) {
-          // Pause when finished so we don't keep ticking.
-          // The Dashboard page will detect this and show the Save Session modal.
           return { focusSession: { ...session, secondsElapsed: session.duration, isPaused: true } };
         }
         return { focusSession: { ...session, secondsElapsed: nextSeconds } };
@@ -595,7 +598,7 @@ export const useTaskStore = create(
         return {
           tasks: updatedTasks,
           focusHistory: [...state.focusHistory, newSessionRecord],
-          focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
+          focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false },
           ...earnedShieldState
         };
       }),

@@ -56,6 +56,7 @@ export default function Dashboard() {
   // Timer local setup
   const [timerTaskId, setTimerTaskId] = useState("");
   const [timerDuration, setTimerDuration] = useState(1500); // Default 25m
+  const [timerMode, setTimerMode] = useState('timer'); // 'timer' | 'stopwatch'
 
   // Save Focus Session Modal states
   const [saveSessionModalOpen, setSaveSessionModalOpen] = useState(false);
@@ -64,9 +65,9 @@ export default function Dashboard() {
   const [sessionCompletedSeconds, setSessionCompletedSeconds] = useState(0);
   const [hasShownSaveModal, setHasShownSaveModal] = useState(false);
 
-  // Set timer duration dynamically when a task is selected
+  // Set timer duration dynamically when a task is selected (only for timer mode)
   useEffect(() => {
-    if (timerTaskId) {
+    if (timerTaskId && timerMode === 'timer') {
       const selectedTask = tasks.find(t => t.id === timerTaskId);
       if (selectedTask) {
         const plannedMins = parseDurationToMinutes(selectedTask.duration) || 25;
@@ -75,7 +76,7 @@ export default function Dashboard() {
         setTimerDuration(remainingMins * 60);
       }
     }
-  }, [timerTaskId, tasks]);
+  }, [timerTaskId, tasks, timerMode]);
 
   // Compute stats
   const stats = useMemo(() => {
@@ -188,18 +189,33 @@ export default function Dashboard() {
 
   // Timer helpers
   const activeFocusTask = tasks.find(t => t.id === focusSession.activeTaskId);
+  const isStopwatchMode = focusSession.isStopwatch;
+
+  // Timer mode: counts down. Stopwatch mode: counts up.
   const remainingSeconds = focusSession.duration - focusSession.secondsElapsed;
-  const timerMins = Math.floor(remainingSeconds / 60);
-  const timerSecs = remainingSeconds % 60;
-  
+  const countdownMins = Math.floor(remainingSeconds / 60);
+  const countdownSecs = remainingSeconds % 60;
+  const elapsedMins = Math.floor(focusSession.secondsElapsed / 60);
+  const elapsedSecs = focusSession.secondsElapsed % 60;
+
+  // Display values
+  const displayMins = isStopwatchMode ? elapsedMins : countdownMins;
+  const displaySecs = isStopwatchMode ? elapsedSecs : countdownSecs;
+
   const timerRadius = 42;
   const timerCircumference = 2 * Math.PI * timerRadius;
-  const strokeDashoffset = timerCircumference - (focusSession.secondsElapsed / focusSession.duration) * timerCircumference;
+  // Timer: fill as time elapses. Stopwatch: pulse ring (use elapsed mod 60s)
+  const timerProgress = isStopwatchMode
+    ? (focusSession.secondsElapsed % 60) / 60
+    : focusSession.secondsElapsed / focusSession.duration;
+  const strokeDashoffset = timerCircumference - timerProgress * timerCircumference;
 
   const handleStartTimer = () => {
     if (timerTaskId) {
       setHasShownSaveModal(false);
-      startFocus(timerTaskId, timerDuration);
+      const isStopwatch = timerMode === 'stopwatch';
+      // For stopwatch mode, duration is set very large (won't be used as a limit)
+      startFocus(timerTaskId, isStopwatch ? 999999 : timerDuration, isStopwatch);
     }
   };
 
@@ -239,8 +255,9 @@ export default function Dashboard() {
     }
   };
 
-  // Detect natural timer completion
+  // Detect natural timer completion (only in timer mode, not stopwatch)
   useEffect(() => {
+    if (isStopwatchMode) return; // Stopwatch never auto-completes
     if (focusSession.activeTaskId && focusSession.secondsElapsed >= focusSession.duration) {
       if (!saveSessionModalOpen && !hasShownSaveModal) {
         const task = tasks.find(t => t.id === focusSession.activeTaskId);
@@ -256,14 +273,14 @@ export default function Dashboard() {
           else moodVal = 2;
 
           setSuggestedMood(moodVal);
-          setMarkTaskAsDone(true); // Default to true since they focused the full scheduled/preset time
+          setMarkTaskAsDone(true);
           setSessionCompletedSeconds(focusSession.secondsElapsed);
           setSaveSessionModalOpen(true);
           setHasShownSaveModal(true);
         }
       }
     }
-  }, [focusSession.secondsElapsed, focusSession.duration, focusSession.activeTaskId, saveSessionModalOpen, hasShownSaveModal, tasks]);
+  }, [focusSession.secondsElapsed, focusSession.duration, focusSession.activeTaskId, saveSessionModalOpen, hasShownSaveModal, tasks, isStopwatchMode]);
 
   return (
     <div className="space-y-6 pb-10">
@@ -482,7 +499,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Pomodoro Focus Timer Card */}
+        {/* Focus Timer Card */}
         <div className="glass-panel rounded-xl p-6 bg-slate-900/20 border-slate-800 flex flex-col justify-between">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
@@ -495,12 +512,11 @@ export default function Dashboard() {
             /* Timer Active Display */
             <div className="flex flex-col items-center py-2 text-center">
               <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-                {/* SVG Progress Ring */}
                 <svg className="w-32 h-32 absolute transform -rotate-90">
                   <circle cx="64" cy="64" r={timerRadius} className="stroke-slate-900" strokeWidth="4.5" fill="transparent" />
                   <circle
                     cx="64" cy="64" r={timerRadius}
-                    className="stroke-amber-500 transition-all duration-300"
+                    className={`transition-all duration-300 ${isStopwatchMode ? 'stroke-emerald-400' : 'stroke-amber-500'}`}
                     strokeWidth="4.5"
                     fill="transparent"
                     strokeDasharray={timerCircumference}
@@ -510,9 +526,11 @@ export default function Dashboard() {
                 </svg>
                 <div className="flex flex-col items-center justify-center z-10">
                   <span className="text-2xl font-black text-white leading-none">
-                    {timerMins.toString().padStart(2, '0')}:{timerSecs.toString().padStart(2, '0')}
+                    {displayMins.toString().padStart(2, '0')}:{displaySecs.toString().padStart(2, '0')}
                   </span>
-                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Remaining</span>
+                  <span className={`text-[8px] font-black uppercase tracking-widest mt-1 ${isStopwatchMode ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {isStopwatchMode ? '⏱ Elapsed' : 'Remaining'}
+                  </span>
                 </div>
               </div>
 
@@ -520,7 +538,7 @@ export default function Dashboard() {
                 {activeFocusTask ? activeFocusTask.title : "Focus Session"}
               </p>
               <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-4">
-                {activeFocusTask ? (activeFocusTask.category || activeFocusTask.status) : "General"}
+                {isStopwatchMode ? '🔓 Free-run Stopwatch' : (activeFocusTask ? (activeFocusTask.category || activeFocusTask.status) : "General")}
               </p>
 
               {/* Timer Controls */}
@@ -549,53 +567,102 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            /* Timer Setup Display */
+            /* Setup Display */
             <div className="flex flex-col justify-between flex-1 py-1 space-y-4">
-              <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Select Task to Focus</label>
-                <select
-                  value={timerTaskId}
-                  onChange={e => setTimerTaskId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-3.5 py-3 text-xs font-bold text-slate-200 focus:outline-none focus:border-brand-primary"
+              {/* Mode Toggle */}
+              <div className="flex items-center bg-slate-950/60 border border-slate-900 rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setTimerMode('timer')}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    timerMode === 'timer'
+                      ? 'bg-amber-500/15 border border-amber-500/40 text-amber-400'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
                 >
-                  <option value="">-- Choose an Activity --</option>
-                  {pendingTasks.map(task => (
-                    <option key={task.id} value={task.id}>
-                      [{task.category || task.status}] {task.title}
-                    </option>
-                  ))}
-                </select>
+                  <Clock className="w-3 h-3" /> Timer
+                </button>
+                <button
+                  onClick={() => setTimerMode('stopwatch')}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    timerMode === 'stopwatch'
+                      ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <Zap className="w-3 h-3" /> Stopwatch
+                </button>
               </div>
 
+              {/* Task Picker */}
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Duration</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: "15m", value: 900 },
-                    { label: "25m", value: 1500 },
-                    { label: "50m", value: 3000 },
-                  ].map(opt => (
-                    <button
-                      key={opt.label}
-                      onClick={() => setTimerDuration(opt.value)}
-                      className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
-                        timerDuration === opt.value
-                          ? "bg-amber-500/10 border-amber-500 text-amber-500"
-                          : "bg-slate-950/40 border-slate-900 text-slate-500 hover:text-slate-300"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Select Task to Focus</label>
+                <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/80 custom-scrollbar divide-y divide-slate-900">
+                  {pendingTasks.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-slate-600 text-center">No pending tasks</div>
+                  ) : (
+                    pendingTasks.map(task => {
+                      const isSelected = timerTaskId === task.id;
+                      const accentActive = timerMode === 'stopwatch' ? 'bg-emerald-500/10 border-l-2 border-emerald-500 text-white' : 'bg-amber-500/10 border-l-2 border-amber-500 text-white';
+                      return (
+                        <button
+                          key={task.id}
+                          onClick={() => setTimerTaskId(task.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                            isSelected ? accentActive : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                          }`}
+                        >
+                          <span className="text-xs font-semibold truncate flex-1 leading-snug">{task.title}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {task.duration && (
+                              <span className="text-[9px] font-black text-slate-600 bg-slate-900 px-1.5 py-0.5 rounded-md">{task.duration}</span>
+                            )}
+                            <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-500">
+                              {task.category || task.status}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
+
+              {timerMode === 'timer' && (
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Duration</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "15m", value: 900 },
+                      { label: "25m", value: 1500 },
+                      { label: "50m", value: 3000 },
+                    ].map(opt => (
+                      <button
+                        key={opt.label}
+                        onClick={() => setTimerDuration(opt.value)}
+                        className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                          timerDuration === opt.value
+                            ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                            : "bg-slate-950/40 border-slate-900 text-slate-500 hover:text-slate-300"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleStartTimer}
                 disabled={!timerTaskId}
-                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10"
+                className={`w-full py-3 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg ${
+                  timerMode === 'stopwatch'
+                    ? 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-500/10'
+                    : 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/10'
+                }`}
               >
-                <Play className="w-3.5 h-3.5" /> Start Focus Session
+                <Play className="w-3.5 h-3.5" />
+                {timerMode === 'stopwatch' ? 'Start Stopwatch' : 'Start Focus Session'}
               </button>
             </div>
           )}
