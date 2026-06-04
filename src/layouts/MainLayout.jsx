@@ -13,9 +13,33 @@ export default function MainLayout() {
     taskToEdit, 
     isResetModalOpen, 
     closeResetModal, 
-    resetStore 
+    resetStore,
+    tickFocus,
+    focusSession,
+    shieldConsumedToday,
+    dismissShieldNotification,
+    syncPlannedAndActualDurations
   } = useTaskStore();
   const navigate = useNavigate();
+
+  // Sync manual completions on initialize — run ONCE on mount only
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    syncPlannedAndActualDurations();
+  }, []);
+
+  // Global Pomodoro ticking
+  useEffect(() => {
+    let interval = null;
+    if (focusSession && focusSession.activeTaskId && !focusSession.isPaused) {
+      interval = setInterval(() => {
+        tickFocus();
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [focusSession?.activeTaskId, focusSession?.isPaused, tickFocus]);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -53,6 +77,25 @@ export default function MainLayout() {
       </div>
       
       <TaskModal isOpen={isTaskModalOpen} onClose={closeTaskModal} taskToEdit={taskToEdit} />
+
+      {/* Streak Shield Notification Toast */}
+      {shieldConsumedToday && (
+        <div className="fixed top-6 right-6 z-9999 max-w-sm bg-emerald-950/95 border border-emerald-500/30 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-start gap-3.5 animate-in slide-in-from-top-2 duration-300 backdrop-blur-md">
+          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-400">Streak Protected!</h4>
+            <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">A Streak Shield was automatically used to protect your habit streak since you missed completing your habits yesterday.</p>
+            <button
+              onClick={dismissShieldNotification}
+              className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest mt-3 underline block cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Global Reset Modal - Full Screen Blur */}
       {isResetModalOpen && (

@@ -1,4 +1,4 @@
-import { Check, Trash2, Info, Calendar, Clock, Smile, ArrowRightLeft, X } from "lucide-react";
+import { Check, Trash2, Info, Calendar, Clock, Smile, ArrowRightLeft, X, StickyNote } from "lucide-react";
 import { Draggable } from "@hello-pangea/dnd";
 import confetti from "canvas-confetti";
 import { useTaskStore } from "../store/useTaskStore";
@@ -14,7 +14,10 @@ const SECTIONS = [
 
 export default function TaskCard({ task, index, columnAccent }) {
   const { openTaskModal, updateTask, deleteTask } = useTaskStore();
+  const notes = useTaskStore((state) => state.notes);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
+
+  const linkedNote = notes.find(n => n.linkedTaskId === task.id);
 
   const priorityColor = {
     high: { bg: "rgba(255,0,0,0.5)", text: "#ff0000", label: "HIGH" },
@@ -132,6 +135,13 @@ export default function TaskCard({ task, index, columnAccent }) {
                     />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {linkedNote && (
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-brand-primary">
+                <StickyNote className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[150px]">Pad: {linkedNote.title}</span>
               </div>
             )}
           </div>

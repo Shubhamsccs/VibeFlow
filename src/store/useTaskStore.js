@@ -9,9 +9,42 @@ const DEFAULT_COMPULSORY_TASKS = [
 
 const todayStr = () => new Date().toLocaleDateString('en-CA');
 
+const parseDurationToMinutes = (duration) => {
+  if (!duration) return 0;
+  if (duration.includes(':')) {
+    const parts = duration.split(':').map(Number);
+    if (parts.length >= 2) return (parts[0] * 60) + parts[1];
+  }
+  const h = parseInt(duration.match(/(\d+)h/)?.[1] || 0);
+  const m = parseInt(duration.match(/(\d+)m/)?.[1] || 0);
+  if (h === 0 && m === 0 && !isNaN(parseInt(duration))) return parseInt(duration);
+  return (h * 60) + m;
+};
+
 const isOnBreak = (task) => {
   if (!task.breakUntil) return false;
   return task.breakUntil >= todayStr();
+};
+
+const normalizeStatus = (status) => {
+  if (!status || status === "todo") return "college";
+  if (status === "webdev") return "web-dev";
+  if (status === "java") return "dsa-java";
+  if (status === "practice") return "dsa-practice";
+  return status;
+};
+
+const handleTaskCompletionEarn = (state) => {
+  const nextCount = state.taskCompletionsForShield + 1;
+  if (nextCount >= 15) {
+    return {
+      taskCompletionsForShield: 0,
+      streakShields: state.streakShields + 1,
+    };
+  }
+  return {
+    taskCompletionsForShield: nextCount,
+  };
 };
 
 export const useTaskStore = create(
@@ -29,25 +62,96 @@ export const useTaskStore = create(
       closeResetModal: () => set({ isResetModalOpen: false }),
 
       addTask: (task) =>
-        set((state) => ({
-          tasks: [
-            ...state.tasks,
-            {
-              id: crypto.randomUUID(),
-              createdAt: new Date().toISOString(),
-              ...task
-            },
-          ],
-        })),
+        set((state) => {
+          const newTask = {
+            id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            ...task
+          };
+          
+          if (newTask.status && newTask.status !== 'done') {
+            newTask.category = newTask.status;
+          } else if (!newTask.category) {
+            newTask.category = newTask.status || "college";
+          }
+          
+          let earnedShieldState = {};
+          let newHistoryEntry = null;
+          if (newTask.status === 'done') {
+            earnedShieldState = handleTaskCompletionEarn(state);
+            if (!newTask.actualDurationMinutes) {
+              const plannedMins = parseDurationToMinutes(newTask.duration) || 60;
+              newTask.actualDurationMinutes = plannedMins;
+              newTask.actualDuration = newTask.duration || "1h";
+
+              const category = newTask.category || newTask.status || "college";
+              newHistoryEntry = {
+                id: crypto.randomUUID(),
+                taskId: newTask.id,
+                taskTitle: newTask.title,
+                category: normalizeStatus(category),
+                date: todayStr(),
+                minutes: plannedMins,
+                mood: newTask.mood || 4,
+                isManual: true,
+              };
+            }
+          }
+
+          return {
+            tasks: [...state.tasks, newTask],
+            focusHistory: newHistoryEntry ? [...state.focusHistory, newHistoryEntry] : state.focusHistory,
+            ...earnedShieldState,
+          };
+        }),
       updateTask: (id, updatedTask) =>
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id ? { ...task, ...updatedTask } : task
-          ),
-        })),
+        set((state) => {
+          const oldTask = state.tasks.find(t => t.id === id);
+          const isNewlyDone = oldTask && oldTask.status !== 'done' && updatedTask.status === 'done';
+          
+          let earnedShieldState = {};
+          let extraFields = {};
+          let newHistoryEntry = null;
+
+          if (updatedTask.status && updatedTask.status !== 'done') {
+            extraFields.category = updatedTask.status;
+          }
+
+          if (isNewlyDone) {
+            earnedShieldState = handleTaskCompletionEarn(state);
+            if (!oldTask.actualDurationMinutes) {
+              const plannedMins = parseDurationToMinutes(oldTask.duration || updatedTask.duration) || 60;
+              const formattedDuration = oldTask.duration || updatedTask.duration || "1h";
+              extraFields.actualDurationMinutes = plannedMins;
+              extraFields.actualDuration = formattedDuration;
+
+              const category = oldTask.category || oldTask.status || "college";
+              newHistoryEntry = {
+                id: crypto.randomUUID(),
+                taskId: id,
+                taskTitle: oldTask.title || updatedTask.title || "Untitled Task",
+                category: normalizeStatus(category),
+                date: todayStr(),
+                minutes: plannedMins,
+                mood: oldTask.mood || updatedTask.mood || 4,
+                isManual: true,
+              };
+            }
+          }
+
+          return {
+            tasks: state.tasks.map((task) =>
+              task.id === id ? { ...task, ...updatedTask, ...extraFields } : task
+            ),
+            focusHistory: newHistoryEntry ? [...state.focusHistory, newHistoryEntry] : state.focusHistory,
+            ...earnedShieldState,
+          };
+        }),
       deleteTask: (id) =>
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== id),
+          // Also purge any focusHistory entries tied to this task
+          focusHistory: state.focusHistory.filter((h) => h.taskId !== id),
         })),
       moveTask: (id, newStatus, destinationIndex) =>
         set((state) => {
@@ -56,12 +160,33 @@ export const useTaskStore = create(
 
           const newTasks = [...state.tasks];
           const [movedTask] = newTasks.splice(taskIndex, 1);
+          
+          const oldStatus = movedTask.status;
           movedTask.status = newStatus;
 
+          let newHistoryEntry = null;
           if (newStatus === 'done' && !movedTask.completedAt) {
             movedTask.completedAt = new Date().toISOString();
+            if (!movedTask.actualDurationMinutes) {
+              const plannedMins = parseDurationToMinutes(movedTask.duration) || 60;
+              movedTask.actualDurationMinutes = plannedMins;
+              movedTask.actualDuration = movedTask.duration || "1h";
+
+              const category = movedTask.category || movedTask.status || "college";
+              newHistoryEntry = {
+                id: crypto.randomUUID(),
+                taskId: id,
+                taskTitle: movedTask.title,
+                category: normalizeStatus(category),
+                date: todayStr(),
+                minutes: plannedMins,
+                mood: movedTask.mood || 4,
+                isManual: true,
+              };
+            }
           } else if (newStatus !== 'done') {
             movedTask.completedAt = null;
+            movedTask.category = newStatus;
           }
 
           let statusCount = 0;
@@ -78,7 +203,17 @@ export const useTaskStore = create(
           }
 
           newTasks.splice(insertIdx, 0, movedTask);
-          return { tasks: newTasks };
+          
+          let earnedShieldState = {};
+          if (newStatus === 'done' && oldStatus !== 'done') {
+            earnedShieldState = handleTaskCompletionEarn(state);
+          }
+
+          return { 
+            tasks: newTasks,
+            focusHistory: newHistoryEntry ? [...state.focusHistory, newHistoryEntry] : state.focusHistory,
+            ...earnedShieldState,
+          };
         }),
 
       notes: [{ id: 'general', title: 'General', content: '' }],
@@ -106,6 +241,71 @@ export const useTaskStore = create(
       lastStreakDate: null,
       claimedRewards: [],
 
+      // Productivity Powerhouse state
+      streakShields: 0,
+      taskCompletionsForShield: 0,
+      shieldConsumedToday: false,
+      dailyFocusTasks: [],
+      kickoffCompletedDate: null,
+      windDownCompletedDate: null,
+      focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
+      focusHistory: [],
+
+      syncPlannedAndActualDurations: () => set((state) => {
+        const parseMins = (dur) => {
+          if (!dur) return 60;
+          if (dur.includes(':')) {
+            const parts = dur.split(':').map(Number);
+            if (parts.length >= 2) return (parts[0] * 60) + parts[1];
+          }
+          const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
+          const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
+          if (h === 0 && m === 0 && !isNaN(parseInt(dur))) return parseInt(dur);
+          return (h * 60) + m || 60;
+        };
+
+        const updatedTasks = state.tasks.map((task) => {
+          if (task.status === 'done') {
+            const plannedMins = parseMins(task.duration);
+            const formatted = task.duration || "1h";
+            return {
+              ...task,
+              actualDurationMinutes: plannedMins,
+              actualDuration: formatted,
+            };
+          }
+          return task;
+        });
+
+        // Build a Set of current task IDs for fast lookup
+        const taskIdSet = new Set(state.tasks.map(t => t.id));
+
+        // Deduplicate focusHistory: keep at most ONE entry per taskId (manual entries for completed tasks).
+        // Remove entries for tasks that have been deleted.
+        const seenTaskIds = new Set();
+        const updatedHistory = [];
+        for (const item of state.focusHistory) {
+          // Drop entries for deleted tasks
+          if (!taskIdSet.has(item.taskId)) continue;
+
+          // For manual (sync) entries, keep only the first occurrence per task
+          if (item.isManual) {
+            if (seenTaskIds.has(item.taskId)) continue;
+            seenTaskIds.add(item.taskId);
+          }
+
+          // Update minutes to match the task's current planned duration
+          const task = state.tasks.find(t => t.id === item.taskId);
+          const plannedMins = task ? parseMins(task.duration) : item.minutes;
+          updatedHistory.push({ ...item, minutes: plannedMins });
+        }
+
+        return {
+          tasks: updatedTasks,
+          focusHistory: updatedHistory,
+        };
+      }),
+
       // Called on app load to reset daily state and auto-resume expired breaks
       checkAndResetDaily: () => set((state) => {
         const today = todayStr();
@@ -119,9 +319,40 @@ export const useTaskStore = create(
           breakUntil: task.breakUntil && task.breakUntil < today ? null : task.breakUntil,
         }));
 
+        // Calculate if they missed completing their active tasks yesterday
+        let newStreakCount = state.streakCount;
+        let shieldConsumed = false;
+        let newStreakShields = state.streakShields;
+
+        if (state.lastResetDate) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+
+          if (state.lastStreakDate !== yesterdayStr) {
+            const activeYesterday = state.compulsoryTasks.filter(t => {
+              if (!t.breakUntil) return true;
+              return t.breakUntil < state.lastResetDate;
+            });
+
+            if (activeYesterday.length > 0) {
+              if (state.streakShields > 0) {
+                newStreakShields = state.streakShields - 1;
+                shieldConsumed = true;
+              } else {
+                newStreakCount = 0;
+              }
+            }
+          }
+        }
+
         return {
           compulsoryTasks: updatedTasks,
           lastResetDate: today,
+          streakCount: newStreakCount,
+          streakShields: newStreakShields,
+          shieldConsumedToday: shieldConsumed,
+          dailyFocusTasks: [], // reset daily priorities for the new day
         };
       }),
 
@@ -245,6 +476,109 @@ export const useTaskStore = create(
           : [...state.claimedRewards, rewardId],
       })),
 
+      // Focus Timer Actions
+      startFocus: (taskId, durationSeconds = 1500) => set({
+        focusSession: { activeTaskId: taskId, secondsElapsed: 0, isPaused: false, duration: durationSeconds }
+      }),
+      pauseFocus: () => set((state) => ({
+        focusSession: { ...state.focusSession, isPaused: !state.focusSession.isPaused }
+      })),
+      tickFocus: () => set((state) => {
+        const session = state.focusSession;
+        if (session.isPaused || !session.activeTaskId) return {};
+        const nextSeconds = session.secondsElapsed + 1;
+        if (nextSeconds >= session.duration) {
+          // Pause when finished so we don't keep ticking.
+          // The Dashboard page will detect this and show the Save Session modal.
+          return { focusSession: { ...session, secondsElapsed: session.duration, isPaused: true } };
+        }
+        return { focusSession: { ...session, secondsElapsed: nextSeconds } };
+      }),
+      stopFocus: (save = true) => {
+        if (save) {
+          get().completeFocusSession(false, 3);
+        } else {
+          set({
+            focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 }
+          });
+        }
+      },
+      completeFocusSession: (markTaskDone = false, mood = 3) => set((state) => {
+        const { activeTaskId, secondsElapsed } = state.focusSession;
+        if (!activeTaskId) return {};
+        
+        const minutes = Math.max(1, Math.round(secondsElapsed / 60));
+        const task = state.tasks.find(t => t.id === activeTaskId);
+        const category = task ? (task.category || task.status) : "college";
+
+        const newSessionRecord = {
+          id: crypto.randomUUID(),
+          taskId: activeTaskId,
+          taskTitle: task ? task.title : "Unknown Task",
+          category: normalizeStatus(category),
+          date: todayStr(),
+          minutes,
+          mood,
+          isManual: false,
+        };
+
+        let updatedTasks = state.tasks;
+        let earnedShieldState = {};
+
+        if (task) {
+          const currentActual = task.actualDurationMinutes || 0;
+          const newActual = currentActual + minutes;
+          
+          const formatMins = (mins) => {
+            if (mins >= 60) {
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              return m > 0 ? `${h}h ${m}m` : `${h}h`;
+            }
+            return `${mins}m`;
+          };
+          const formattedActual = formatMins(newActual);
+
+          const updatedFields = {
+            actualDurationMinutes: newActual,
+            actualDuration: formattedActual,
+            mood: mood,
+          };
+
+          if (markTaskDone) {
+            updatedFields.status = 'done';
+            if (!task.completedAt) {
+              updatedFields.completedAt = new Date().toISOString();
+            }
+          }
+
+          updatedTasks = state.tasks.map(t => 
+            t.id === activeTaskId ? { ...t, ...updatedFields } : t
+          );
+
+          if (markTaskDone && task.status !== 'done') {
+            earnedShieldState = handleTaskCompletionEarn(state);
+          }
+        }
+
+        return {
+          tasks: updatedTasks,
+          focusHistory: [...state.focusHistory, newSessionRecord],
+          focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
+          ...earnedShieldState
+        };
+      }),
+
+      // Daily Wizard Actions
+      setDailyFocus: (taskIds) => set({ dailyFocusTasks: taskIds }),
+      completeKickoff: () => set({ kickoffCompletedDate: todayStr() }),
+      completeWindDown: () => set({ windDownCompletedDate: todayStr() }),
+      dismissShieldNotification: () => set({ shieldConsumedToday: false }),
+
+      // Shield Actions
+      addStreakShield: () => set((state) => ({ streakShields: state.streakShields + 1 })),
+      useStreakShield: () => set((state) => ({ streakShields: Math.max(0, state.streakShields - 1) })),
+
       resetStore: () => set({
         tasks: [],
         notes: [{ id: 'general', title: 'General', content: '' }],
@@ -256,6 +590,16 @@ export const useTaskStore = create(
         claimedRewards: [],
         compulsoryTaskHistory: {},
         lastResetDate: null,
+        
+        // Reset new states
+        streakShields: 0,
+        taskCompletionsForShield: 0,
+        focusHistory: [],
+        dailyFocusTasks: [],
+        kickoffCompletedDate: null,
+        windDownCompletedDate: null,
+        focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
+        shieldConsumedToday: false,
       }),
     }),
     {

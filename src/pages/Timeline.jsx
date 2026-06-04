@@ -173,6 +173,48 @@ export default function Timeline() {
                 {group.items.map((item) => {
                   const category = (item.category || item.status || 'college').toLowerCase();
                   
+                  // Calculate badge based on focus ratio
+                  const parseMins = (dur) => {
+                    if (!dur) return 0;
+                    if (dur.includes(':')) {
+                      const parts = dur.split(':').map(Number);
+                      if (parts.length >= 2) return (parts[0] * 60) + parts[1];
+                    }
+                    const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
+                    const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
+                    return (h * 60) + m;
+                  };
+                  const plannedMinutes = parseMins(item.duration);
+                  const actualMinutes = item.actualDurationMinutes || 0;
+                  const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) : 0;
+                  
+                  let badge = null;
+                  if (plannedMinutes > 0) {
+                    if (ratio >= 1.1) {
+                      badge = {
+                        label: "Hyper-focused",
+                        className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                      };
+                    } else if (ratio >= 0.9) {
+                      badge = {
+                        label: "On Track",
+                        className: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                      };
+                    } else {
+                      if (item.status === 'done') {
+                        badge = {
+                          label: "Efficient",
+                          className: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+                        };
+                      } else {
+                        badge = {
+                          label: "Under-focused",
+                          className: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                        };
+                      }
+                    }
+                  }
+                  
                   return (
                     <div 
                       key={item.id} 
@@ -205,20 +247,41 @@ export default function Timeline() {
                             <h4 className="text-xl font-black text-white group-hover:text-brand-primary transition-colors leading-none tracking-tight mb-3">
                               {item.title}
                             </h4>
-                            <div className="flex items-center gap-3">
-                              <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-black border border-slate-800 text-slate-400 min-w-[60px] text-center">
-                                {category.replace('-', ' ')}
-                              </span>
-                              <div className="w-1 h-1 rounded-full bg-slate-700" />
-                              <span className="text-xs font-black text-slate-300 uppercase tracking-wider">
-                                {formatDurationDisplay(item.duration)}
-                              </span>
-                              {item.mood && (
-                                <>
-                                  <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                  <MoodHeatmap score={item.mood} />
-                                </>
-                              )}
+                            <div className="flex flex-col gap-2.5">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-black border border-slate-800 text-slate-400 min-w-[60px] text-center">
+                                  {category.replace('-', ' ')}
+                                </span>
+                                {item.mood && (
+                                  <>
+                                    <div className="w-1 h-1 rounded-full bg-slate-700" />
+                                    <MoodHeatmap score={item.mood} />
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 flex-wrap text-slate-400">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                                  <span>Planned:</span>
+                                  <span className="text-xs font-black text-slate-300">
+                                    {formatDurationDisplay(item.duration)}
+                                  </span>
+                                </div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                                  <span>Focused:</span>
+                                  <span className="text-xs font-black text-brand-success">
+                                    {item.actualDuration || "0m"}
+                                  </span>
+                                </div>
+                                {badge && (
+                                  <>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.className}`}>
+                                      {badge.label}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
                           

@@ -156,7 +156,7 @@ function TimePicker({ value, onChange, label, icon: Icon }) {
 }
 
 function TaskModalInner({ onClose, taskToEdit }) {
-  const { addTask, updateTask } = useTaskStore();
+  const { addTask, updateTask, notes, updateNote } = useTaskStore();
   const [formData, setFormData] = useState(() => {
     const data = getInitialFormData(taskToEdit);
     // If marking as done and no times set, pre-fill with current time
@@ -170,6 +170,18 @@ function TaskModalInner({ onClose, taskToEdit }) {
   });
   const isEditing = taskToEdit && taskToEdit.id;
 
+  // Linked Note state
+  const [linkedNoteId, setLinkedNoteId] = useState("");
+
+  useEffect(() => {
+    if (isEditing) {
+      const foundNote = notes.find(n => n.linkedTaskId === taskToEdit?.id);
+      setLinkedNoteId(foundNote ? foundNote.id : "");
+    } else {
+      setLinkedNoteId("");
+    }
+  }, [taskToEdit, notes, isEditing]);
+
   // Auto-calculate duration when start or end time changes
   useEffect(() => {
     if (formData.startTime && formData.endTime) {
@@ -182,9 +194,16 @@ function TaskModalInner({ onClose, taskToEdit }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Determine or generate task ID so we can associate the note
+    const taskId = taskToEdit?.id || crypto.randomUUID();
+    
     const taskData = {
+      id: taskId,
       ...formData,
-      category: formData.category || formData.status,
+      category: formData.status === 'done' 
+        ? (formData.category && formData.category !== 'done' ? formData.category : 'college')
+        : formData.status,
     };
 
     if (taskData.status === 'done' && !taskData.completedAt) {
@@ -202,6 +221,19 @@ function TaskModalInner({ onClose, taskToEdit }) {
     } else {
       addTask(taskData);
     }
+
+    // Handle Linked Note logic
+    notes.forEach(n => {
+      // Clear linkedTaskId on any note that was linked to this task but is no longer selected
+      if (n.linkedTaskId === taskId && n.id !== linkedNoteId) {
+        updateNote(n.id, { linkedTaskId: null });
+      }
+    });
+
+    if (linkedNoteId) {
+      updateNote(linkedNoteId, { linkedTaskId: taskId });
+    }
+
     onClose();
   };
 
@@ -330,6 +362,23 @@ function TaskModalInner({ onClose, taskToEdit }) {
             </div>
           </div>
 
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
+              Link Mind Dump Pad
+            </label>
+            <select
+              value={linkedNoteId}
+              onChange={(e) => setLinkedNoteId(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold text-sm appearance-none"
+            >
+              <option value="">-- No Pad Linked --</option>
+              {notes.map((note) => (
+                <option key={note.id} value={note.id}>
+                  {note.title}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="pt-6 flex justify-end gap-4 border-t border-slate-800">
             <button 
