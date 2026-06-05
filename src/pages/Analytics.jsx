@@ -329,10 +329,11 @@ function DurationAnalytics({ tasks }) {
     return (h * 60) + m;
   };
 
-  // Only count COMPLETED tasks for the planned total — matches what the daily chart shows
+  // Count planned time for tasks that have been worked on (focused or completed)
+  // This ensures planned and actual bars are comparable — both show tasks you've touched
   const totalPlannedDuration = useMemo(() => {
     return tasks
-      .filter(t => t.status === 'done')
+      .filter(t => t.status === 'done' || t.actualDurationMinutes > 0)
       .reduce((acc, t) => acc + parseDuration(t.duration), 0);
   }, [tasks]);
 
@@ -354,13 +355,18 @@ function DurationAnalytics({ tasks }) {
 
   const getPlannedMinsForDay = (day) => {
     const dayStr = format(day, 'yyyy-MM-dd');
-    // Only count COMPLETED tasks for planned hours — active tasks haven't been "focused on" yet
+    // Include tasks that were focused on this day (have focus history) OR completed this day
+    const focusedTaskIdsToday = new Set(
+      focusHistory.filter(s => s.date === dayStr).map(s => s.taskId)
+    );
     return tasks
       .filter(task => {
-        if (task.status !== 'done') return false;
-        // Use completedAt date if available, otherwise fall back to dueDate/createdAt
+        // Include if completed on this day
         const taskDateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0];
-        return taskDateStr === dayStr;
+        if (task.status === 'done' && taskDateStr === dayStr) return true;
+        // Include if a focus session was recorded for this task on this day
+        if (focusedTaskIdsToday.has(task.id)) return true;
+        return false;
       })
       .reduce((acc, t) => acc + parseDuration(t.duration), 0);
   };

@@ -27,7 +27,8 @@ export default function Dashboard() {
     notes, activeNoteId, setActiveNoteId, addNote, updateNote, deleteNote,
     streakShields, dailyFocusTasks, kickoffCompletedDate, windDownCompletedDate,
     focusSession, startFocus, pauseFocus, stopFocus, setDailyFocus,
-    completeKickoff, completeWindDown, updateTask, completeFocusSession
+    completeKickoff, completeWindDown, updateTask, completeFocusSession, getLiveElapsed,
+    focusHistory
   } = useTaskStore();
 
   const activeNote = notes.find(n => n.id === activeNoteId) || notes[0];
@@ -80,58 +81,82 @@ export default function Dashboard() {
 
   // Compute stats
   const stats = useMemo(() => {
-    const parseDuration = (duration) => {
-      if (!duration) return 0;
-      if (duration.includes(':')) {
-        const parts = duration.split(':').map(Number);
-        if (parts.length >= 2) return (parts[0] * 60) + parts[1];
-      }
-      const h = parseInt(duration.match(/(\d+)h/)?.[1] || 0);
-      const m = parseInt(duration.match(/(\d+)m/)?.[1] || 0);
-      return (h * 60) + m;
-    };
-
     const completedTasks = tasks.filter((t) => t.status === "done");
-    
-    const dailyDuration = completedTasks
-      .filter((t) => {
-        let taskDate = '';
-        if (t.completedAt) {
-          taskDate = new Date(t.completedAt).toLocaleDateString('en-CA');
-        } else if (t.dueDate) {
-          taskDate = t.dueDate;
-        } else if (t.createdAt) {
-          taskDate = new Date(t.createdAt).toLocaleDateString('en-CA');
-        }
-        return taskDate === todayStr;
-      })
-      .reduce((acc, t) => acc + parseDuration(t.duration), 0);
-    
-    const completionScore = tasks.length === 0 ? 0 : (completedTasks.reduce((acc, t) => {
+
+    // Sum today's actual focused minutes from focusHistory (not planned duration)
+    // This updates immediately after any focus session is saved, even without marking task done
+    const dailyFocusedMins = focusHistory
+      .filter(s => s.date === todayStr)
+      .reduce((acc, s) => acc + (s.minutes || 0), 0);
+
+    // 1. Completion Score (30% weight)
+    const completionScore = tasks.length === 0 ? 100 : (completedTasks.reduce((acc, t) => {
       const isLate = t.dueDate && t.completedAt && t.completedAt.split('T')[0] > t.dueDate;
       return acc + (isLate ? 0.5 : 1);
     }, 0) / tasks.length) * 100;
 
-    const moodTasks = completedTasks.filter((t) => t.mood);
-    const avgMood = moodTasks.length
-      ? (moodTasks.reduce((acc, t) => acc + (t.mood || 0), 0) / moodTasks.length).toFixed(1)
-      : "0.0";
+    // 2. Focus Accuracy (40% weight) - actual vs planned minutes today for active tasks
+    const activeTasksToday = tasks.filter(t => {
+      const isPlannedToday = dailyFocusTasks.includes(t.id);
+      const hasHistoryToday = focusHistory.some(s => s.taskId === t.id && s.date === todayStr);
+      return isPlannedToday || hasHistoryToday;
+    });
 
-    const moodScore = (parseFloat(avgMood) / 5) * 100;
-    
+    let focusAccuracy = 100;
+    if (activeTasksToday.length > 0) {
+      let totalPlannedToday = 0;
+      let totalActualToday = 0;
+
+      activeTasksToday.forEach(t => {
+        const planned = parseDurationToMinutes(t.duration) || 25;
+        const actualToday = focusHistory
+          .filter(s => s.taskId === t.id && s.date === todayStr)
+          .reduce((acc, s) => acc + (s.minutes || 0), 0);
+
+        totalPlannedToday += planned;
+        totalActualToday += actualToday;
+      });
+
+      if (totalActualToday === 0) {
+        focusAccuracy = 50; // Neutral starting point before work begins
+      } else if (totalPlannedToday > 0) {
+        focusAccuracy = Math.min(100, (totalActualToday / totalPlannedToday) * 100);
+      } else {
+        focusAccuracy = 100;
+      }
+    }
+
+    // 3. Mood Score (30% weight) - today's focus session moods, falling back to completed tasks mood
+    const todaySessions = focusHistory.filter(s => s.date === todayStr && s.mood);
+    const avgTodaySessionMood = todaySessions.length
+      ? (todaySessions.reduce((acc, s) => acc + (s.mood || 0), 0) / todaySessions.length)
+      : null;
+
+    const completedTasksWithMood = tasks.filter(t => t.status === "done" && t.mood);
+    const avgCompletedTaskMood = completedTasksWithMood.length
+      ? (completedTasksWithMood.reduce((acc, t) => acc + (t.mood || 0), 0) / completedTasksWithMood.length)
+      : null;
+
+    const displayMood = avgTodaySessionMood !== null 
+      ? avgTodaySessionMood.toFixed(1) 
+      : (avgCompletedTaskMood !== null ? avgCompletedTaskMood.toFixed(1) : "0.0");
+
+    const moodScore = displayMood !== "0.0" ? (parseFloat(displayMood) / 5) * 100 : 100;
+
     const finalProductivity = Math.round(
-      (completionScore * 0.7) + 
+      (completionScore * 0.3) + 
+      (focusAccuracy * 0.4) + 
       (moodScore * 0.3)
     );
 
     return {
       completed: completedTasks.length,
-      dailyHours: Math.floor(dailyDuration / 60),
-      dailyMins: dailyDuration % 60,
-      avgMood,
+      dailyHours: Math.floor(dailyFocusedMins / 60),
+      dailyMins: dailyFocusedMins % 60,
+      avgMood: displayMood,
       productivity: finalProductivity,
     };
-  }, [tasks, todayStr]);
+  }, [tasks, todayStr, focusHistory, dailyFocusTasks]);
 
   // Handle Kickoff / Winddown triggers
   const handleOpenKickoff = () => {
@@ -222,8 +247,9 @@ export default function Dashboard() {
   const handleManualSave = () => {
     const task = tasks.find(t => t.id === focusSession.activeTaskId);
     if (task) {
+      const liveSeconds = getLiveElapsed();
       const plannedMins = parseDurationToMinutes(task.duration) || 60;
-      const actualMins = Math.max(1, Math.round(focusSession.secondsElapsed / 60));
+      const actualMins = Math.max(1, Math.round(liveSeconds / 60));
       const ratio = actualMins / plannedMins;
 
       let moodVal = 3;
@@ -234,7 +260,7 @@ export default function Dashboard() {
 
       setSuggestedMood(moodVal);
       setMarkTaskAsDone(ratio >= 0.9 || actualMins >= plannedMins);
-      setSessionCompletedSeconds(focusSession.secondsElapsed);
+      setSessionCompletedSeconds(liveSeconds);
       setSaveSessionModalOpen(true);
       setHasShownSaveModal(true);
     } else {

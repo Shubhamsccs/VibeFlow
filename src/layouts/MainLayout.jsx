@@ -28,7 +28,7 @@ export default function MainLayout() {
     syncPlannedAndActualDurations();
   }, []);
 
-  // Global Pomodoro ticking
+  // Global timer tick — updates display every second while tab is visible
   useEffect(() => {
     let interval = null;
     if (focusSession && focusSession.activeTaskId && !focusSession.isPaused) {
@@ -40,6 +40,18 @@ export default function MainLayout() {
       if (interval) clearInterval(interval);
     };
   }, [focusSession?.activeTaskId, focusSession?.isPaused, tickFocus]);
+
+  // Page Visibility API — catch up elapsed time when Chrome is restored from minimized/background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Tab just became visible again — immediately sync the wall-clock elapsed time
+        tickFocus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [tickFocus]);
 
   useEffect(() => {
     const handleKeyPress = (e) => {

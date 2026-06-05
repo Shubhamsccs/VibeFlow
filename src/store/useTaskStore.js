@@ -233,13 +233,10 @@ export const useTaskStore = create(
         };
       }),
 
-      // ─── Rewards System ───────────────────────────────────────────────────────
-
       compulsoryTasks: DEFAULT_COMPULSORY_TASKS,
       archivedCompulsoryTasks: [],
       streakCount: 0,
       lastStreakDate: null,
-      claimedRewards: [],
 
       // Productivity Powerhouse state
       streakShields: 0,
@@ -248,7 +245,7 @@ export const useTaskStore = create(
       dailyFocusTasks: [],
       kickoffCompletedDate: null,
       windDownCompletedDate: null,
-      focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false },
+      focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
       focusHistory: [],
 
       syncPlannedAndActualDurations: () => set((state) => {
@@ -501,47 +498,73 @@ export const useTaskStore = create(
         },
       })),
 
-      claimReward: (rewardId) => set((state) => ({
-        claimedRewards: state.claimedRewards.includes(rewardId)
-          ? state.claimedRewards
-          : [...state.claimedRewards, rewardId],
-      })),
-
       // Focus Timer Actions
       startFocus: (taskId, durationSeconds = 1500, isStopwatch = false) => set({
-        focusSession: { activeTaskId: taskId, secondsElapsed: 0, isPaused: false, duration: durationSeconds, isStopwatch }
+        focusSession: {
+          activeTaskId: taskId,
+          secondsElapsed: 0,
+          baseElapsed: 0,        // accumulated seconds from completed pause intervals
+          isPaused: false,
+          duration: durationSeconds,
+          isStopwatch,
+          startedAt: Date.now(), // fixed reference — NEVER reset during ticking
+        }
       }),
-      pauseFocus: () => set((state) => ({
-        focusSession: { ...state.focusSession, isPaused: !state.focusSession.isPaused }
-      })),
+
+      pauseFocus: () => set((state) => {
+        const session = state.focusSession;
+        if (!session.isPaused) {
+          // Pausing: freeze elapsed into baseElapsed, clear startedAt
+          const frozen = session.baseElapsed +
+            (session.startedAt ? Math.floor((Date.now() - session.startedAt) / 1000) : 0);
+          return { focusSession: { ...session, isPaused: true, baseElapsed: frozen, secondsElapsed: frozen, startedAt: null } };
+        } else {
+          // Resuming: record a fresh startedAt, keep baseElapsed as-is
+          return { focusSession: { ...session, isPaused: false, startedAt: Date.now() } };
+        }
+      }),
+
+      // Called every second by setInterval — startedAt is NEVER reset here.
+      // We compute total elapsed as baseElapsed + (now - startedAt), which is always
+      // accurate even if the interval fires slightly early or late.
       tickFocus: () => set((state) => {
         const session = state.focusSession;
-        if (session.isPaused || !session.activeTaskId) return {};
-        const nextSeconds = session.secondsElapsed + 1;
-        // Stopwatch mode: count up forever, never auto-pause
+        if (session.isPaused || !session.activeTaskId || !session.startedAt) return {};
+
+        const currentElapsed = session.baseElapsed +
+          Math.floor((Date.now() - session.startedAt) / 1000);
+
+        // Stopwatch: count up forever
         if (session.isStopwatch) {
-          return { focusSession: { ...session, secondsElapsed: nextSeconds } };
+          return { focusSession: { ...session, secondsElapsed: currentElapsed } };
         }
-        // Timer mode: pause when countdown reaches 0
-        if (nextSeconds >= session.duration) {
-          return { focusSession: { ...session, secondsElapsed: session.duration, isPaused: true } };
+        // Timer: pause when countdown finishes
+        if (currentElapsed >= session.duration) {
+          return { focusSession: { ...session, secondsElapsed: session.duration, isPaused: true, startedAt: null } };
         }
-        return { focusSession: { ...session, secondsElapsed: nextSeconds } };
+        return { focusSession: { ...session, secondsElapsed: currentElapsed } };
       }),
       stopFocus: (save = true) => {
         if (save) {
           get().completeFocusSession(false, 3);
         } else {
           set({
-            focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 }
+            focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
           });
         }
       },
       completeFocusSession: (markTaskDone = false, mood = 3) => set((state) => {
-        const { activeTaskId, secondsElapsed } = state.focusSession;
+        const session = state.focusSession;
+        const { activeTaskId } = session;
         if (!activeTaskId) return {};
-        
-        const minutes = Math.max(1, Math.round(secondsElapsed / 60));
+
+        // Compute the most accurate final elapsed — includes any un-ticked fraction
+        // since the last setInterval fire. This prevents losing up to 1s on save.
+        const liveElapsed = session.isPaused
+          ? session.baseElapsed
+          : session.baseElapsed + Math.floor((Date.now() - (session.startedAt || Date.now())) / 1000);
+
+        const minutes = Math.max(1, Math.round(liveElapsed / 60));
         const task = state.tasks.find(t => t.id === activeTaskId);
         const category = task ? (task.category || task.status) : "college";
 
@@ -598,10 +621,17 @@ export const useTaskStore = create(
         return {
           tasks: updatedTasks,
           focusHistory: [...state.focusHistory, newSessionRecord],
-          focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false },
+          focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
           ...earnedShieldState
         };
       }),
+
+      // Returns the live elapsed seconds including un-ticked wall-clock fraction
+      getLiveElapsed: () => {
+        const session = get().focusSession;
+        if (session.isPaused || !session.startedAt) return session.baseElapsed || session.secondsElapsed;
+        return session.baseElapsed + Math.floor((Date.now() - session.startedAt) / 1000);
+      },
 
       // Daily Wizard Actions
       setDailyFocus: (taskIds) => set({ dailyFocusTasks: taskIds }),
@@ -621,7 +651,6 @@ export const useTaskStore = create(
         archivedCompulsoryTasks: [],
         streakCount: 0,
         lastStreakDate: null,
-        claimedRewards: [],
         compulsoryTaskHistory: {},
         lastResetDate: null,
         
