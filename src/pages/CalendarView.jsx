@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/useTaskStore';
 
 export default function CalendarView() {
   const [viewDate, setViewDate] = useState(new Date());
-  const { tasks } = useTaskStore();
+  const { tasks, focusHistory } = useTaskStore();
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -23,8 +23,22 @@ export default function CalendarView() {
 
   const getHeatmapColor = (day) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    // Sum from focusHistory
+    const historyMins = (focusHistory || [])
+      .filter(s => s.date === dateStr)
+      .reduce((acc, s) => acc + (s.minutes || 0), 0);
+
+    // Sum from completed tasks that might not have focusHistory (fallback)
     const completed = tasks.filter(t => (t.dueDate || t.createdAt?.split('T')[0]) === dateStr && t.status === 'done');
-    const mins = completed.reduce((acc, t) => acc + parseDuration(t.duration), 0);
+    const taskMins = completed.reduce((acc, t) => {
+      // Avoid double counting if this task already has history entries on this day
+      const hasHistory = (focusHistory || []).some(s => s.taskId === t.id && s.date === dateStr);
+      if (hasHistory) return acc;
+      return acc + (t.actualDurationMinutes || parseDuration(t.duration) || 0);
+    }, 0);
+
+    const mins = historyMins + taskMins;
     const hours = mins / 60;
     if (hours === 0) return 'transparent';
     if (hours < 1) return '#22c55e22'; 

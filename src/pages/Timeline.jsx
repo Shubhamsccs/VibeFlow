@@ -3,6 +3,17 @@ import { Clock, Calendar, Smile, Search, Filter, History, Trash2, AlertCircle } 
 import { useTaskStore } from '../store/useTaskStore';
 import { format, parseISO, compareDesc } from 'date-fns';
 
+const parseMins = (dur) => {
+  if (!dur) return 0;
+  if (dur.includes(':')) {
+    const parts = dur.split(':').map(Number);
+    if (parts.length >= 2) return (parts[0] * 60) + parts[1];
+  }
+  const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
+  const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
+  return (h * 60) + m;
+};
+
 export default function Timeline() {
   const { tasks, deleteTask } = useTaskStore();
   const [taskToDelete, setTaskToDelete] = useState(null);
@@ -94,15 +105,11 @@ export default function Timeline() {
       }
       groups[dateKey].items.push(task);
       
-      if (task.duration) {
-        if (task.duration.includes(':')) {
-          const parts = task.duration.split(':').map(Number);
-          groups[dateKey].totalMinutes += (parts[0] * 60) + (parts[1] || 0);
-        } else {
-          const h = parseInt(task.duration.match(/(\d+)h/)?.[1] || 0);
-          const m = parseInt(task.duration.match(/(\d+)m/)?.[1] || 0);
-          groups[dateKey].totalMinutes += (h * 60) + m;
-        }
+      const mins = task.actualDurationMinutes || 0;
+      if (mins > 0) {
+        groups[dateKey].totalMinutes += mins;
+      } else if (task.duration) {
+        groups[dateKey].totalMinutes += parseMins(task.duration);
       }
     });
 
@@ -174,16 +181,6 @@ export default function Timeline() {
                   const category = (item.category || item.status || 'college').toLowerCase();
                   
                   // Calculate badge based on focus ratio
-                  const parseMins = (dur) => {
-                    if (!dur) return 0;
-                    if (dur.includes(':')) {
-                      const parts = dur.split(':').map(Number);
-                      if (parts.length >= 2) return (parts[0] * 60) + parts[1];
-                    }
-                    const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
-                    const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
-                    return (h * 60) + m;
-                  };
                   const plannedMinutes = parseMins(item.duration);
                   const actualMinutes = item.actualDurationMinutes || 0;
                   const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) : 0;
