@@ -261,19 +261,6 @@ export const useTaskStore = create(
           return (h * 60) + m || 60;
         };
 
-        const updatedTasks = state.tasks.map((task) => {
-          if (task.status === 'done') {
-            const plannedMins = parseMins(task.duration);
-            const formatted = task.duration || "1h";
-            return {
-              ...task,
-              actualDurationMinutes: plannedMins,
-              actualDuration: formatted,
-            };
-          }
-          return task;
-        });
-
         // Build a Set of current task IDs for fast lookup
         const taskIdSet = new Set(state.tasks.map(t => t.id));
 
@@ -297,8 +284,9 @@ export const useTaskStore = create(
 
           // Update minutes to match the task's current planned duration
           const task = state.tasks.find(t => t.id === item.taskId);
-          const plannedMins = task ? parseMins(task.duration) : item.minutes;
-          updatedHistory.push({ ...item, minutes: plannedMins });
+          // Preserve actual tracked minutes for timer/stopwatch focus entries, update only manual completions
+          const actualMins = (item.isManual && task) ? parseMins(task.duration) : item.minutes;
+          updatedHistory.push({ ...item, minutes: actualMins });
         }
 
         // ── Backfill missing entries for historical completed tasks ──────────
@@ -327,6 +315,33 @@ export const useTaskStore = create(
           });
           seenTaskIds.add(task.id);
         }
+
+        // Helper to format actual minutes back to text display (e.g. "1h 34m")
+        const formatMins = (mins) => {
+          if (mins >= 60) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return m > 0 ? `${h}h ${m}m` : `${h}h`;
+          }
+          return `${mins}m`;
+        };
+
+        // Update tasks: for completed tasks, calculate actualDurationMinutes and actualDuration
+        // based on the sum of their focusHistory entries to keep them accurate and in sync.
+        const updatedTasks = state.tasks.map((task) => {
+          if (task.status === 'done') {
+            const taskHistoryMins = updatedHistory
+              .filter(h => h.taskId === task.id)
+              .reduce((acc, h) => acc + h.minutes, 0);
+
+            return {
+              ...task,
+              actualDurationMinutes: taskHistoryMins,
+              actualDuration: formatMins(taskHistoryMins),
+            };
+          }
+          return task;
+        });
 
         return {
           tasks: updatedTasks,
