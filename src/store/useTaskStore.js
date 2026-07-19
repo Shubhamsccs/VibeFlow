@@ -79,8 +79,8 @@ export const useTaskStore = create(
           let newHistoryEntry = null;
           if (newTask.status === 'done') {
             earnedShieldState = handleTaskCompletionEarn(state);
-            if (!newTask.actualDurationMinutes) {
-              const plannedMins = parseDurationToMinutes(newTask.duration) || 60;
+            if (newTask.actualDurationMinutes === undefined || newTask.actualDurationMinutes === null) {
+              const plannedMins = newTask.duration ? parseDurationToMinutes(newTask.duration) : 60;
               newTask.actualDurationMinutes = plannedMins;
               newTask.actualDuration = newTask.duration || "1h";
 
@@ -119,9 +119,10 @@ export const useTaskStore = create(
 
           if (isNewlyDone) {
             earnedShieldState = handleTaskCompletionEarn(state);
-            if (!oldTask.actualDurationMinutes) {
-              const plannedMins = parseDurationToMinutes(oldTask.duration || updatedTask.duration) || 60;
-              const formattedDuration = oldTask.duration || updatedTask.duration || "1h";
+            if (oldTask.actualDurationMinutes === undefined || oldTask.actualDurationMinutes === null) {
+              const durStr = oldTask.duration || updatedTask.duration;
+              const plannedMins = durStr ? parseDurationToMinutes(durStr) : 60;
+              const formattedDuration = durStr || "1h";
               extraFields.actualDurationMinutes = plannedMins;
               extraFields.actualDuration = formattedDuration;
 
@@ -167,8 +168,8 @@ export const useTaskStore = create(
           let newHistoryEntry = null;
           if (newStatus === 'done' && !movedTask.completedAt) {
             movedTask.completedAt = new Date().toISOString();
-            if (!movedTask.actualDurationMinutes) {
-              const plannedMins = parseDurationToMinutes(movedTask.duration) || 60;
+            if (movedTask.actualDurationMinutes === undefined || movedTask.actualDurationMinutes === null) {
+              const plannedMins = movedTask.duration ? parseDurationToMinutes(movedTask.duration) : 60;
               movedTask.actualDurationMinutes = plannedMins;
               movedTask.actualDuration = movedTask.duration || "1h";
 
@@ -250,7 +251,7 @@ export const useTaskStore = create(
 
       syncPlannedAndActualDurations: () => set((state) => {
         const parseMins = (dur) => {
-          if (!dur) return 60;
+          if (dur === undefined || dur === null || dur === "") return 60;
           if (dur.includes(':')) {
             const parts = dur.split(':').map(Number);
             if (parts.length >= 2) return (parts[0] * 60) + parts[1];
@@ -258,7 +259,7 @@ export const useTaskStore = create(
           const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
           const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
           if (h === 0 && m === 0 && !isNaN(parseInt(dur))) return parseInt(dur);
-          return (h * 60) + m || 60;
+          return (h * 60) + m;
         };
 
         // Build a Set of current task IDs for fast lookup

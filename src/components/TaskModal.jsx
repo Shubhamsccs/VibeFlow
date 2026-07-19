@@ -23,6 +23,7 @@ function getInitialFormData(taskToEdit) {
     startTime: "",
     endTime: "",
     mood: 3,
+    isQuickTask: false,
   };
 
   if (taskToEdit && taskToEdit.id) {
@@ -159,8 +160,8 @@ function TaskModalInner({ onClose, taskToEdit }) {
   const { addTask, updateTask, notes, updateNote } = useTaskStore();
   const [formData, setFormData] = useState(() => {
     const data = getInitialFormData(taskToEdit);
-    // If marking as done and no times set, pre-fill with current time
-    if (data.status === 'done' && !data.startTime) {
+    // If marking as done and no times set, pre-fill with current time (skip for quick tasks)
+    if (data.status === 'done' && !data.startTime && !data.isQuickTask) {
       const now = new Date();
       data.endTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       const start = new Date(now.getTime() - 60 * 60 * 1000); // Default 1h back
@@ -269,6 +270,31 @@ function TaskModalInner({ onClose, taskToEdit }) {
             />
           </div>
 
+          {/* Quick Task Option */}
+          <div className="flex items-center gap-3 p-4 bg-slate-950/20 rounded-2xl border border-slate-800/50">
+            <input
+              type="checkbox"
+              id="isQuickTask"
+              checked={formData.isQuickTask || false}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setFormData(prev => ({
+                  ...prev,
+                  isQuickTask: checked,
+                  startTime: checked ? "" : prev.startTime,
+                  endTime: checked ? "" : prev.endTime,
+                  duration: checked ? "0m" : (prev.startTime && prev.endTime ? calculateDuration(prev.startTime, prev.endTime) : prev.duration),
+                  actualDurationMinutes: checked ? 0 : prev.actualDurationMinutes,
+                  actualDuration: checked ? "0m" : prev.actualDuration
+                }));
+              }}
+              className="w-4 h-4 rounded accent-brand-primary cursor-pointer"
+            />
+            <label htmlFor="isQuickTask" className="text-xs font-bold text-slate-200 cursor-pointer select-none">
+              Quick Task <span className="text-[10px] text-slate-500 font-medium font-mono">(No Time Tracking, 0m duration)</span>
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
@@ -302,7 +328,8 @@ function TaskModalInner({ onClose, taskToEdit }) {
           </div>
 
           {/* Time Tracking Section */}
-          <div className="grid grid-cols-3 gap-4 p-4 bg-slate-950/40 rounded-3xl border border-slate-800">
+          {!formData.isQuickTask && (
+            <div className="grid grid-cols-3 gap-4 p-4 bg-slate-950/40 rounded-3xl border border-slate-800">
             <TimePicker 
               label="Start" 
               icon={Play} 
@@ -326,6 +353,7 @@ function TaskModalInner({ onClose, taskToEdit }) {
               </div>
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-6">
             <div>
