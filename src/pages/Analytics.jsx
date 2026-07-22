@@ -35,7 +35,6 @@ const TABS = [
   { id: "tasks", label: "Tasks", icon: CheckCircle, color: "#25d366" },
   { id: "streaks", label: "Streaks", icon: Flame, color: "#ff8c00" },
   { id: "duration", label: "Activity Time", icon: Clock, color: "#0000ff" },
-  { id: "focus", label: "Focus Timer", icon: Timer, color: "#ffd700" },
   { id: "mood", label: "Mood Analysis", icon: Smile, color: "#ff0000" },
   { id: "priority", label: "Priority Analysis", icon: AlertCircle, color: "#ff00ff" },
 ];
@@ -128,7 +127,6 @@ export default function Analytics() {
         {activeTab === "tasks" && <TasksAnalytics tasks={tasks} />}
         {activeTab === "streaks" && <StreaksAnalytics tasks={tasks} />}
         {activeTab === "duration" && <DurationAnalytics tasks={tasks} />}
-        {activeTab === "focus" && <FocusAnalytics />}
         {activeTab === "mood" && <MoodAnalytics tasks={tasks} />}
         {activeTab === "priority" && <PriorityAnalytics tasks={tasks} />}
       </div>
@@ -317,35 +315,25 @@ function DurationAnalytics({ tasks }) {
     [rawFocusHistory, activeTaskIds]
   );
 
-  const parseDuration = (duration) => {
-    if (!duration) return 0;
-    if (duration.includes(':')) {
-      const parts = duration.split(':').map(Number);
-      if (parts.length === 3) return (parts[0] * 60) + parts[1]; // HH:MM:SS
-      if (parts.length === 2) return (parts[0] * 60) + parts[1]; // HH:MM
-    }
-    const h = parseInt(duration.match(/(\d+)h/)?.[1] || 0);
-    const m = parseInt(duration.match(/(\d+)m/)?.[1] || 0);
-    return (h * 60) + m;
-  };
-
-  // Count planned time for tasks that have been worked on (focused or completed)
-  // This ensures planned and actual bars are comparable — both show tasks you've touched
-  const totalPlannedDuration = useMemo(() => {
-    return tasks
-      .filter(t => t.status === 'done' || t.actualDurationMinutes > 0)
-      .reduce((acc, t) => acc + parseDuration(t.duration), 0);
-  }, [tasks]);
-
-  const totalActualDuration = useMemo(() => {
-    return focusHistory.reduce((acc, s) => acc + s.minutes, 0);
+  const totalDuration = useMemo(() => {
+    return focusHistory.reduce((acc, s) => acc + (s.minutes || 0), 0);
   }, [focusHistory]);
 
-  const plannedHours = Math.floor(totalPlannedDuration / 60);
-  const plannedMins = totalPlannedDuration % 60;
+  const totalHours = Math.floor(totalDuration / 60);
+  const totalMins = totalDuration % 60;
 
-  const actualHours = Math.floor(totalActualDuration / 60);
-  const actualMins = totalActualDuration % 60;
+  const completedTasksCount = useMemo(() => {
+    return tasks.filter(t => t.status === 'done').length;
+  }, [tasks]);
+
+  const activeDaysCount = useMemo(() => {
+    return new Set([
+      ...tasks.map(t => t.completedAt?.split('T')[0] || t.dueDate || t.createdAt?.split('T')[0]).filter(Boolean),
+      ...focusHistory.map(h => h.date).filter(Boolean)
+    ]).size;
+  }, [tasks, focusHistory]);
+
+  const avgDailyMins = activeDaysCount > 0 ? Math.round(totalDuration / activeDaysCount) : 0;
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -353,122 +341,47 @@ function DurationAnalytics({ tasks }) {
     return d;
   }).reverse();
 
-  const getPlannedMinsForDay = (day) => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    // Include tasks that were focused on this day (have focus history) OR completed this day
-    const focusedTaskIdsToday = new Set(
-      focusHistory.filter(s => s.date === dayStr).map(s => s.taskId)
-    );
-    return tasks
-      .filter(task => {
-        // Include if completed on this day
-        const taskDateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0];
-        if (task.status === 'done' && taskDateStr === dayStr) return true;
-        // Include if a focus session was recorded for this task on this day
-        if (focusedTaskIdsToday.has(task.id)) return true;
-        return false;
-      })
-      .reduce((acc, t) => acc + parseDuration(t.duration), 0);
-  };
-
   const getActualMinsForDay = (day) => {
     const dayStr = day.toLocaleDateString('en-CA');
     return focusHistory
       .filter(s => s.date === dayStr)
-      .reduce((acc, s) => acc + s.minutes, 0);
+      .reduce((acc, s) => acc + (s.minutes || 0), 0);
   };
 
-  const dailyPlannedHours = last7Days.map(date => getPlannedMinsForDay(date) / 60);
   const dailyActualHours = last7Days.map(date => getActualMinsForDay(date) / 60);
 
-  // Focus Accuracy (Average for all completed tasks that had a planned duration)
-  const focusAccuracy = useMemo(() => {
-    const tasksWithDurations = tasks.filter(t => t.duration && (t.actualDurationMinutes || t.status === 'done'));
-    if (tasksWithDurations.length === 0) return 0;
-    const accuracies = tasksWithDurations.map(t => {
-      const planned = parseDuration(t.duration);
-      if (planned === 0) return 100;
-      const actual = t.actualDurationMinutes || 0;
-      return Math.min(100, Math.round((actual / planned) * 100));
+  // Category Distribution
+  const categoryDurationData = useMemo(() => {
+    const cats = { college: 0, myspace: 0, java: 0, "web-dev": 0, practice: 0, other: 0 };
+    focusHistory.forEach(s => {
+      const rawCat = (s.category || "").toLowerCase();
+      let key = "other";
+      if (rawCat.includes("college")) key = "college";
+      else if (rawCat.includes("myspace")) key = "myspace";
+      else if (rawCat.includes("java")) key = "java";
+      else if (rawCat.includes("web")) key = "web-dev";
+      else if (rawCat.includes("practice")) key = "practice";
+
+      cats[key] += s.minutes || 0;
     });
-    return Math.round(accuracies.reduce((acc, a) => acc + a, 0) / accuracies.length);
-  }, [tasks]);
-
-  // Focus Quality (Timeline Badges)
-  const focusQualityCounts = useMemo(() => {
-    let hyper = 0, onTrack = 0, efficient = 0, under = 0;
-    tasks.forEach(t => {
-      const planned = parseDuration(t.duration);
-      if (planned > 0) {
-        const actual = t.actualDurationMinutes || 0;
-        const ratio = actual / planned;
-        if (ratio >= 1.1) {
-          hyper++;
-        } else if (ratio >= 0.9) {
-          onTrack++;
-        } else {
-          if (t.status === 'done') {
-            efficient++;
-          } else {
-            under++;
-          }
-        }
-      }
-    });
-    return { hyper, onTrack, efficient, under };
-  }, [tasks]);
-
-  const focusQualityData = {
-    labels: ['Hyper-focused', 'On Track', 'Efficient', 'Under-focused'],
-    datasets: [
-      {
-        data: [focusQualityCounts.hyper, focusQualityCounts.onTrack, focusQualityCounts.efficient, focusQualityCounts.under],
-        backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
-        borderWidth: 0,
-      }
-    ]
-  };
-
-  // Mood Correlation
-  const moodCorrelation = useMemo(() => {
-    const tasksWithMood = tasks.filter(t => t.mood && t.duration);
-    if (tasksWithMood.length === 0) return null;
-
-    const highAccuracyTasks = [];
-    const lowAccuracyTasks = [];
-
-    tasksWithMood.forEach(t => {
-      const planned = parseDuration(t.duration);
-      if (planned === 0) return;
-      const actual = t.actualDurationMinutes || 0;
-      const ratio = actual / planned;
-      if (ratio >= 0.9) {
-        highAccuracyTasks.push(t.mood);
-      } else {
-        lowAccuracyTasks.push(t.mood);
-      }
-    });
-
-    const avg = (arr) => arr.length ? (arr.reduce((acc, m) => acc + m, 0) / arr.length).toFixed(1) : null;
 
     return {
-      highAccAvg: avg(highAccuracyTasks),
-      lowAccAvg: avg(lowAccuracyTasks),
-      hasData: highAccuracyTasks.length > 0 || lowAccuracyTasks.length > 0
+      labels: ['College', 'MySpace', 'Java / DSA', 'Web Dev', 'Practice', 'Other'],
+      datasets: [
+        {
+          data: [cats.college, cats.myspace, cats.java, cats["web-dev"], cats.practice, cats.other],
+          backgroundColor: ['#2563eb', '#25d366', '#ffffff', '#ff0000', '#ffd700', '#94a3b8'],
+          borderWidth: 0,
+        }
+      ]
     };
-  }, [tasks]);
+  }, [focusHistory]);
 
   const customChartOptions = {
     ...baseChartOptions,
     plugins: {
       legend: {
-        display: true,
-        position: "top",
-        labels: {
-          color: "#94a3b8",
-          boxWidth: 10,
-          font: { size: 10, weight: "bold" },
-        }
+        display: false
       }
     }
   };
@@ -476,31 +389,22 @@ function DurationAnalytics({ tasks }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Planned Time" value={`${plannedHours}h ${plannedMins}m`} />
-        <MiniStat label="Actual Focused" value={`${actualHours}h ${actualMins}m`} />
-        <MiniStat label="Focus Accuracy" value={`${focusAccuracy}%`} />
-        <MiniStat 
-          label="Active Days" 
-          value={new Set([...tasks.map(t => t.dueDate || t.createdAt?.split('T')[0]), ...focusHistory.map(h => h.date)]).size} 
-        />
+        <MiniStat label="Total Activity Time" value={`${totalHours}h ${totalMins}m`} />
+        <MiniStat label="Daily Average" value={`${Math.floor(avgDailyMins / 60)}h ${avgDailyMins % 60}m`} />
+        <MiniStat label="Completed Tasks" value={completedTasksCount} />
+        <MiniStat label="Active Days" value={activeDaysCount} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 glass-panel rounded-xl p-6 h-96">
-          <h2 className="text-lg font-bold mb-4">Planned vs. Actual Focus (Last 7 Days)</h2>
-          {tasks.length > 0 || focusHistory.length > 0 ? (
+          <h2 className="text-lg font-bold mb-4">Daily Activity Duration (Last 7 Days)</h2>
+          {focusHistory.length > 0 || tasks.length > 0 ? (
             <Bar 
               data={{
                 labels: last7Days.map(d => format(d, 'EEE')),
                 datasets: [
                   {
-                    label: "Planned Hours",
-                    data: dailyPlannedHours,
-                    backgroundColor: "#3b82f6", // Slate blue
-                    borderRadius: 6
-                  },
-                  {
-                    label: "Actual Focus Hours",
+                    label: "Activity Hours",
                     data: dailyActualHours,
                     backgroundColor: "#10b981", // Emerald green
                     borderRadius: 6
@@ -512,59 +416,34 @@ function DurationAnalytics({ tasks }) {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-600">
               <Clock className="w-10 h-10 mb-2 opacity-20" />
-              <p>Start tracking to see your daily trends.</p>
+              <p>Log activities to see your daily trends.</p>
             </div>
           )}
         </div>
 
         <div className="glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Focus Quality</h2>
+          <h2 className="text-lg font-bold mb-4">Time by Category</h2>
           <div className="flex-1 min-h-0 relative">
-            {tasks.some(t => parseDuration(t.duration) > 0) ? (
-              <Doughnut data={focusQualityData} options={doughnutOptions} />
+            {focusHistory.length > 0 ? (
+              <Doughnut data={categoryDurationData} options={doughnutOptions} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
                 <Clock className="w-10 h-10 mb-2 opacity-20 text-brand-primary" />
-                <p className="text-sm">No tasks with planned durations</p>
+                <p className="text-sm">No activity history logged yet</p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Vibe Correlation Card */}
+      {/* Vibe & Activity Insight Card */}
       <div className="glass-panel rounded-xl p-6 border-slate-800 bg-slate-950/20">
         <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-          <Smile className="w-5 h-5 text-amber-500" /> Focus-Mood Correlation
+          <Smile className="w-5 h-5 text-amber-500" /> Activity Insights
         </h3>
-        {moodCorrelation && moodCorrelation.hasData ? (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-300 leading-relaxed">
-              {moodCorrelation.highAccAvg && moodCorrelation.lowAccAvg ? (
-                <>
-                  When you stay on schedule (Focus Accuracy &ge; 90%), your average mood is{" "}
-                  <span className="text-emerald-400 font-bold">{moodCorrelation.highAccAvg}/5</span>, compared to{" "}
-                  <span className="text-amber-400 font-bold">{moodCorrelation.lowAccAvg}/5</span> when you focus less.
-                  Staying close to your planned schedule keeps your vibes high!
-                </>
-              ) : moodCorrelation.highAccAvg ? (
-                <>
-                  You consistently stay on schedule! Your average mood when meeting your focus targets is{" "}
-                  <span className="text-emerald-400 font-bold">{moodCorrelation.highAccAvg}/5</span>. Keep up the high focus!
-                </>
-              ) : (
-                <>
-                  When you focus less than your planned schedule, your average mood is{" "}
-                  <span className="text-amber-400 font-bold">{moodCorrelation.lowAccAvg}/5</span>. Try to align your actual focus with planned schedules to improve satisfaction.
-                </>
-              )}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Log focus sessions and complete mood checks to see insights on how schedule adherence relates to your vibe.
-          </p>
-        )}
+        <p className="text-sm text-slate-300 leading-relaxed">
+          You have logged <span className="text-emerald-400 font-bold">{totalHours}h {totalMins}m</span> of total activity across <span className="text-brand-primary font-bold">{activeDaysCount} active days</span>. Maintaining consistent daily sessions helps build strong productivity habits!
+        </p>
       </div>
     </div>
   );

@@ -246,7 +246,6 @@ export const useTaskStore = create(
       dailyFocusTasks: [],
       kickoffCompletedDate: null,
       windDownCompletedDate: null,
-      focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
       focusHistory: [],
 
       syncPlannedAndActualDurations: () => set((state) => {
@@ -514,141 +513,6 @@ export const useTaskStore = create(
         },
       })),
 
-      // Focus Timer Actions
-      startFocus: (taskId, durationSeconds = 1500, isStopwatch = false) => set({
-        focusSession: {
-          activeTaskId: taskId,
-          secondsElapsed: 0,
-          baseElapsed: 0,        // accumulated seconds from completed pause intervals
-          isPaused: false,
-          duration: durationSeconds,
-          isStopwatch,
-          startedAt: Date.now(), // fixed reference — NEVER reset during ticking
-        }
-      }),
-
-      pauseFocus: () => set((state) => {
-        const session = state.focusSession;
-        if (!session.isPaused) {
-          // Pausing: freeze elapsed into baseElapsed, clear startedAt
-          const frozen = session.baseElapsed +
-            (session.startedAt ? Math.floor((Date.now() - session.startedAt) / 1000) : 0);
-          return { focusSession: { ...session, isPaused: true, baseElapsed: frozen, secondsElapsed: frozen, startedAt: null } };
-        } else {
-          // Resuming: record a fresh startedAt, keep baseElapsed as-is
-          return { focusSession: { ...session, isPaused: false, startedAt: Date.now() } };
-        }
-      }),
-
-      // Called every second by setInterval — startedAt is NEVER reset here.
-      // We compute total elapsed as baseElapsed + (now - startedAt), which is always
-      // accurate even if the interval fires slightly early or late.
-      tickFocus: () => set((state) => {
-        const session = state.focusSession;
-        if (session.isPaused || !session.activeTaskId || !session.startedAt) return {};
-
-        const currentElapsed = session.baseElapsed +
-          Math.floor((Date.now() - session.startedAt) / 1000);
-
-        // Stopwatch: count up forever
-        if (session.isStopwatch) {
-          return { focusSession: { ...session, secondsElapsed: currentElapsed } };
-        }
-        // Timer: pause when countdown finishes
-        if (currentElapsed >= session.duration) {
-          return { focusSession: { ...session, secondsElapsed: session.duration, isPaused: true, startedAt: null } };
-        }
-        return { focusSession: { ...session, secondsElapsed: currentElapsed } };
-      }),
-      stopFocus: (save = true) => {
-        if (save) {
-          get().completeFocusSession(false, 3);
-        } else {
-          set({
-            focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
-          });
-        }
-      },
-      completeFocusSession: (markTaskDone = false, mood = 3) => set((state) => {
-        const session = state.focusSession;
-        const { activeTaskId } = session;
-        if (!activeTaskId) return {};
-
-        // Compute the most accurate final elapsed — includes any un-ticked fraction
-        // since the last setInterval fire. This prevents losing up to 1s on save.
-        const liveElapsed = session.isPaused
-          ? session.baseElapsed
-          : session.baseElapsed + Math.floor((Date.now() - (session.startedAt || Date.now())) / 1000);
-
-        const minutes = Math.max(1, Math.round(liveElapsed / 60));
-        const task = state.tasks.find(t => t.id === activeTaskId);
-        const category = task ? (task.category || task.status) : "college";
-
-        const newSessionRecord = {
-          id: crypto.randomUUID(),
-          taskId: activeTaskId,
-          taskTitle: task ? task.title : "Unknown Task",
-          category: normalizeStatus(category),
-          date: todayStr(),
-          minutes,
-          mood,
-          isManual: false,
-        };
-
-        let updatedTasks = state.tasks;
-        let earnedShieldState = {};
-
-        if (task) {
-          const currentActual = task.actualDurationMinutes || 0;
-          const newActual = currentActual + minutes;
-          
-          const formatMins = (mins) => {
-            if (mins >= 60) {
-              const h = Math.floor(mins / 60);
-              const m = mins % 60;
-              return m > 0 ? `${h}h ${m}m` : `${h}h`;
-            }
-            return `${mins}m`;
-          };
-          const formattedActual = formatMins(newActual);
-
-          const updatedFields = {
-            actualDurationMinutes: newActual,
-            actualDuration: formattedActual,
-            mood: mood,
-          };
-
-          if (markTaskDone) {
-            updatedFields.status = 'done';
-            if (!task.completedAt) {
-              updatedFields.completedAt = new Date().toISOString();
-            }
-          }
-
-          updatedTasks = state.tasks.map(t => 
-            t.id === activeTaskId ? { ...t, ...updatedFields } : t
-          );
-
-          if (markTaskDone && task.status !== 'done') {
-            earnedShieldState = handleTaskCompletionEarn(state);
-          }
-        }
-
-        return {
-          tasks: updatedTasks,
-          focusHistory: [...state.focusHistory, newSessionRecord],
-          focusSession: { activeTaskId: null, secondsElapsed: 0, baseElapsed: 0, isPaused: true, duration: 1500, isStopwatch: false, startedAt: null },
-          ...earnedShieldState
-        };
-      }),
-
-      // Returns the live elapsed seconds including un-ticked wall-clock fraction
-      getLiveElapsed: () => {
-        const session = get().focusSession;
-        if (session.isPaused || !session.startedAt) return session.baseElapsed || session.secondsElapsed;
-        return session.baseElapsed + Math.floor((Date.now() - session.startedAt) / 1000);
-      },
-
       // Daily Wizard Actions
       setDailyFocus: (taskIds) => set({ dailyFocusTasks: taskIds }),
       completeKickoff: () => set({ kickoffCompletedDate: todayStr() }),
@@ -677,7 +541,6 @@ export const useTaskStore = create(
         dailyFocusTasks: [],
         kickoffCompletedDate: null,
         windDownCompletedDate: null,
-        focusSession: { activeTaskId: null, secondsElapsed: 0, isPaused: true, duration: 1500 },
         shieldConsumedToday: false,
       }),
     }),

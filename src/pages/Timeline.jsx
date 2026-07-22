@@ -258,26 +258,11 @@ export default function Timeline() {
                               </div>
                               <div className="flex items-center gap-3 flex-wrap text-slate-400">
                                 <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                                  <span>Planned:</span>
-                                  <span className="text-xs font-black text-slate-300">
-                                    {formatDurationDisplay(item.duration)}
-                                  </span>
-                                </div>
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                                  <span>Focused:</span>
+                                  <span>Duration:</span>
                                   <span className="text-xs font-black text-brand-success">
-                                    {item.actualDuration || "0m"}
+                                    {item.actualDuration || item.duration || "0m"}
                                   </span>
                                 </div>
-                                {badge && (
-                                  <>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.className}`}>
-                                      {badge.label}
-                                    </span>
-                                  </>
-                                )}
                               </div>
                             </div>
                           </div>
