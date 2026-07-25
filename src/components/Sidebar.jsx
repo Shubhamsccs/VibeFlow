@@ -2,7 +2,6 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   CheckSquare,
-  Calendar,
   LineChart,
   History,
   Timer,
@@ -18,8 +17,7 @@ export default function Sidebar() {
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, shortcut: "1" },
     { name: "Tasks", path: "/tasks", icon: CheckSquare, shortcut: "2" },
     { name: "Timeline", path: "/timeline", icon: History, shortcut: "3" },
-    { name: "Calendar", path: "/calendar", icon: Calendar, shortcut: "4" },
-    { name: "Analytics", path: "/analytics", icon: LineChart, shortcut: "5" },
+    { name: "Analytics", path: "/analytics", icon: LineChart, shortcut: "4" },
   ];
 
   return (

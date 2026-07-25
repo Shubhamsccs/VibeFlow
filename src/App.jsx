@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import TasksBoard from "./pages/TasksBoard";
-import CalendarView from "./pages/CalendarView";
 import Analytics from "./pages/Analytics";
 import Timeline from "./pages/Timeline";
 
@@ -14,7 +13,6 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="tasks" element={<TasksBoard />} />
-          <Route path="calendar" element={<CalendarView />} />
           <Route path="timeline" element={<Timeline />} />
           <Route path="analytics" element={<Analytics />} />
         </Route>

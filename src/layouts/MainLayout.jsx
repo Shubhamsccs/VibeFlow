@@ -36,8 +36,7 @@ export default function MainLayout() {
         '1': '/dashboard',
         '2': '/tasks',
         '3': '/timeline',
-        '4': '/calendar',
-        '5': '/analytics',
+        '4': '/analytics',
       };
 
       if (shortcuts[e.key]) {
