@@ -137,7 +137,8 @@ export default function ImportData() {
     if (name.includes('my space') || name.includes('myspace')) return 'myspace';
     if (name.includes('java') || name.includes('dsa java')) return 'dsa-java';
     if (name.includes('web development') || name.includes('web dev')) return 'web-dev';
-    if (name.includes('practice')) return 'dsa-practice';
+    if (name.includes('practice') || name.includes('dsa practice')) return 'dsa-practice';
+    if (name.includes('aiml') || name.includes('ai & ml') || name.includes('ai/ml') || name.includes('ai')) return 'aiml';
     if (name.includes('done') || name.includes('finished')) return 'done';
     return 'college'; // Default to first column
   };

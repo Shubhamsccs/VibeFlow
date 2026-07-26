@@ -9,6 +9,7 @@ const COLUMN_OPTIONS = [
   { id: "dsa-java", label: "DSA Java" },
   { id: "web-dev", label: "Web Development" },
   { id: "dsa-practice", label: "DSA Practice" },
+  { id: "aiml", label: "AIML" },
   { id: "done", label: "Finished Tasks" },
 ];
 

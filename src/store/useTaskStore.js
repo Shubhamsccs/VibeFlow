@@ -27,10 +27,12 @@ const isOnBreak = (task) => {
 };
 
 const normalizeStatus = (status) => {
-  if (!status || status === "todo") return "college";
-  if (status === "webdev") return "web-dev";
-  if (status === "java") return "dsa-java";
-  if (status === "practice") return "dsa-practice";
+  if (!status || status === "todo" || status === "college" || status === "college work" || status === "college-work") return "college";
+  if (status === "myspace" || status === "my space" || status === "my-space") return "myspace";
+  if (status === "webdev" || status === "web-dev" || status === "web dev") return "web-dev";
+  if (status === "java" || status === "dsa-java" || status === "dsa java") return "dsa-java";
+  if (status === "practice" || status === "dsa-practice" || status === "dsa practice") return "dsa-practice";
+  if (status === "aiml" || status === "ai-ml" || status === "ai & ml" || status === "ai/ml" || status === "ai") return "aiml";
   return status;
 };
 

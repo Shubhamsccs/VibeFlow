@@ -9,7 +9,8 @@ const SECTIONS = [
   { id: 'myspace', title: 'MySpace' },
   { id: 'dsa-java', title: 'DSA Java' },
   { id: 'web-dev', title: 'Web Development' },
-  { id: 'dsa-practice', title: 'DSA Practice' }
+  { id: 'dsa-practice', title: 'DSA Practice' },
+  { id: 'aiml', title: 'AIML' }
 ];
 
 export default function TaskCard({ task, index, columnAccent }) {

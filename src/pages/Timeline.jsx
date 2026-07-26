@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Clock, Calendar, Smile, Search, Filter, History, Trash2, AlertCircle } from 'lucide-react';
+import { Search, History, Trash2, AlertCircle } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
 import { format, parseISO, compareDesc } from 'date-fns';
 
@@ -14,33 +14,91 @@ const parseMins = (dur) => {
   return (h * 60) + m;
 };
 
+const normalizeCategory = (cat) => {
+  if (!cat) return "college";
+  const c = cat.toLowerCase().trim();
+  if (c === "todo" || c === "college" || c === "college work" || c === "college-work" || c === "done") return "college";
+  if (c === "myspace" || c === "my space" || c === "my-space") return "myspace";
+  if (c === "java" || c === "dsa-java" || c === "dsa java" || c === "dsa_java") return "dsa-java";
+  if (c === "webdev" || c === "web-dev" || c === "web dev" || c === "web_dev") return "web-dev";
+  if (c === "practice" || c === "dsa-practice" || c === "dsa practice" || c === "dsa_practice") return "dsa-practice";
+  if (c === "aiml" || c === "ai-ml" || c === "ai & ml" || c === "ai/ml" || c === "ai_ml" || c === "ai") return "aiml";
+  return c;
+};
+
+const getCategoryDisplayName = (catKey) => {
+  const norm = normalizeCategory(catKey);
+  switch (norm) {
+    case 'college': return 'College Work';
+    case 'myspace': return 'MySpace';
+    case 'dsa-java': return 'DSA Java';
+    case 'web-dev': return 'Web Development';
+    case 'dsa-practice': return 'DSA Practice';
+    case 'aiml': return 'AIML';
+    default:
+      return catKey.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+};
+
+const DEFAULT_SECTIONS = [
+  { id: "college", title: "College Work", accent: "#0000ff" },
+  { id: "myspace", title: "MySpace", accent: "#25d366" },
+  { id: "dsa-java", title: "DSA Java", accent: "#ffffff" },
+  { id: "web-dev", title: "Web Development", accent: "#ff0000" },
+  { id: "dsa-practice", title: "DSA Practice", accent: "#ffd700" },
+  { id: "aiml", title: "AIML", accent: "#a855f7" },
+];
+
 export default function Timeline() {
   const { tasks, deleteTask } = useTaskStore();
+  const [activeSection, setActiveSection] = useState("college");
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const finishedTasks = useMemo(() => {
-    return tasks.filter(t => t.status === 'done' && 
-      (t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-       t.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-       t.status?.toLowerCase().includes(searchQuery.toLowerCase())));
-  }, [tasks, searchQuery]);
 
-  // Helper to format time display (stripping dates)
+  // Build full list of sections including any custom categories found in tasks
+  const sections = useMemo(() => {
+    const customCats = new Set();
+    tasks.filter(t => t.status === 'done').forEach(t => {
+      const cat = normalizeCategory(t.category || t.status);
+      if (!DEFAULT_SECTIONS.some(s => s.id === cat)) {
+        customCats.add(cat);
+      }
+    });
+
+    const customList = Array.from(customCats).map(cat => ({
+      id: cat,
+      title: getCategoryDisplayName(cat),
+      accent: "#94a3b8"
+    }));
+
+    return [...DEFAULT_SECTIONS, ...customList];
+  }, [tasks]);
+
+  const currentSection = sections.find(s => s.id === activeSection) || sections[0];
+
+  const sectionTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (t.status !== 'done') return false;
+
+      const cat = normalizeCategory(t.category || t.status);
+      if (cat !== activeSection) return false;
+
+      const q = searchQuery.toLowerCase();
+      if (!q) return true;
+
+      const titleMatch = t.title?.toLowerCase().includes(q);
+      const catMatch = t.category?.toLowerCase().includes(q) || cat.includes(q);
+      return titleMatch || catMatch;
+    });
+  }, [tasks, activeSection, searchQuery]);
+
+  // Format time string
   const formatTimeDisplay = (timeStr) => {
     if (!timeStr) return "";
-    // If it contains a date like "5/9/2026 8:00 AM", split and take only the time parts
     const parts = timeStr.trim().split(/\s+/);
-    if (parts.length >= 3) {
-      // Looks like "MM/DD/YYYY HH:MM AM/PM"
-      return `${parts[1]} ${parts[2]}`;
-    }
-    if (parts.length === 2 && (parts[1] === 'AM' || parts[1] === 'PM')) {
-      // Already "HH:MM AM/PM"
-      return timeStr;
-    }
+    if (parts.length >= 3) return `${parts[1]} ${parts[2]}`;
+    if (parts.length === 2 && (parts[1] === 'AM' || parts[1] === 'PM')) return timeStr;
 
-    // Convert 24h to 12h if needed
     if (timeStr.includes(':') && !timeStr.includes('AM') && !timeStr.includes('PM')) {
       try {
         const [hours, minutes] = timeStr.split(':').map(Number);
@@ -54,27 +112,6 @@ export default function Timeline() {
     return timeStr;
   };
 
-  // Helper to normalize duration display (e.g., 01:00:00 or 1H -> 1h 0m)
-  const formatDurationDisplay = (dur) => {
-    if (!dur) return "0m";
-    let h = 0, m = 0;
-
-    if (dur.includes(':')) {
-      const parts = dur.split(':').map(Number);
-      if (parts.length === 3) { [h, m] = parts; }
-      else if (parts.length === 2) { [h, m] = parts; }
-    } else {
-      h = parseInt(dur.match(/(\d+)\s*h/i)?.[1] || 0);
-      m = parseInt(dur.match(/(\d+)\s*m/i)?.[1] || 0);
-      // Fallback for simple numbers
-      if (h === 0 && m === 0 && !isNaN(parseInt(dur))) h = parseInt(dur);
-    }
-
-    if (h === 0) return `${m}m`;
-    return `${h}h ${m}m`;
-  };
-
-  // Helper to convert time strings to minutes for sorting
   const timeToMinutes = (timeStr) => {
     if (!timeStr) return 0;
     const parts = timeStr.trim().split(/\s+/);
@@ -91,11 +128,20 @@ export default function Timeline() {
     }
   };
 
-  // Grouping logic
-  const groupedTasks = useMemo(() => {
+  // Group section tasks date-wise reliably
+  const dateGroupedTasks = useMemo(() => {
     const groups = {};
-    finishedTasks.forEach(task => {
-      const dateKey = task.dueDate || task.createdAt.split('T')[0];
+    sectionTasks.forEach(task => {
+      let dateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
+      if (dateStr.includes('/')) {
+        try {
+          dateStr = new Date(dateStr).toISOString().split('T')[0];
+        } catch {
+          dateStr = new Date().toISOString().split('T')[0];
+        }
+      }
+
+      const dateKey = dateStr;
       if (!groups[dateKey]) {
         groups[dateKey] = {
           date: dateKey,
@@ -104,7 +150,7 @@ export default function Timeline() {
         };
       }
       groups[dateKey].items.push(task);
-      
+
       const mins = task.actualDurationMinutes || 0;
       if (mins > 0) {
         groups[dateKey].totalMinutes += mins;
@@ -113,13 +159,20 @@ export default function Timeline() {
       }
     });
 
-    // Sort items within each group by time (descending: latest at top)
-    Object.values(groups).forEach(group => {
+    const validGroups = Object.values(groups).filter(g => g.items.length > 0);
+
+    validGroups.forEach(group => {
       group.items.sort((a, b) => timeToMinutes(b.startTime) - timeToMinutes(a.startTime));
     });
 
-    return Object.values(groups).sort((a, b) => compareDesc(parseISO(a.date), parseISO(b.date)));
-  }, [finishedTasks]);
+    return validGroups.sort((a, b) => {
+      try {
+        return compareDesc(parseISO(a.date), parseISO(b.date));
+      } catch {
+        return 0;
+      }
+    });
+  }, [sectionTasks]);
 
   const MoodHeatmap = ({ score }) => {
     return (
@@ -128,9 +181,7 @@ export default function Timeline() {
           <div 
             key={i} 
             className={`w-3 h-3 rounded-sm transition-colors ${
-              i <= (score || 5)
-                ? 'bg-brand-success' // Always green for finished tasks to match your aesthetics
-                : 'bg-slate-800'
+              i <= (score || 5) ? 'bg-brand-success' : 'bg-slate-800'
             }`} 
           />
         ))}
@@ -138,8 +189,110 @@ export default function Timeline() {
     );
   };
 
+  const renderTaskItem = (item) => {
+    const category = normalizeCategory(item.category || item.status || 'college');
+
+    const plannedMinutes = parseMins(item.duration);
+    const actualMinutes = item.actualDurationMinutes || 0;
+    const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) : 0;
+
+    let badge = null;
+    if (plannedMinutes > 0) {
+      if (ratio >= 1.1) {
+        badge = { label: "Hyper-focused", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
+      } else if (ratio >= 0.9) {
+        badge = { label: "On Track", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
+      } else if (item.status === 'done') {
+        badge = { label: "Efficient", className: "bg-purple-500/10 text-purple-400 border-purple-500/20" };
+      } else {
+        badge = { label: "Under-focused", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
+      }
+    }
+
+    return (
+      <div key={item.id} className="flex items-center gap-8 group relative">
+        {/* Status Circle Icon */}
+        <div className="w-10 h-10 flex items-center justify-center relative z-10 shrink-0">
+          <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center bg-black transition-all group-hover:scale-110 shadow-lg ${
+            category === 'college' ? 'border-brand-primary' : 
+            category === 'myspace' ? 'border-brand-success' :
+            category === 'dsa-java' ? 'border-white' :
+            category === 'web-dev' ? 'border-brand-secondary' :
+            category === 'dsa-practice' ? 'border-brand-warning' :
+            category === 'aiml' ? 'border-purple-500' :
+            'border-slate-500'
+          }`}>
+            <div className={`w-3 h-3 rounded-full ${
+              category === 'college' ? 'bg-brand-primary shadow-[0_0_10px_#0000ff]' : 
+              category === 'myspace' ? 'bg-brand-success shadow-[0_0_10px_#25d366]' :
+              category === 'dsa-java' ? 'bg-white shadow-[0_0_10px_#ffffff]' :
+              category === 'web-dev' ? 'bg-brand-secondary shadow-[0_0_10px_#ff0000]' :
+              category === 'dsa-practice' ? 'bg-brand-warning shadow-[0_0_10px_#ffd700]' :
+              category === 'aiml' ? 'bg-purple-500 shadow-[0_0_10px_#a855f7]' :
+              'bg-slate-500'
+            }`} />
+          </div>
+        </div>
+
+        <div className="flex-1 bg-slate-900/20 hover:bg-slate-900/40 border border-slate-800/50 p-6 rounded-4xl transition-all group-hover:border-slate-700">
+          <div className="flex justify-between items-start gap-6">
+            <div className="flex-1">
+              <h4 className="text-xl font-black text-white group-hover:text-brand-primary transition-colors leading-none tracking-tight mb-3">
+                {item.title}
+              </h4>
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-black border border-slate-800 text-slate-400 min-w-[60px] text-center">
+                    {getCategoryDisplayName(category)}
+                  </span>
+                  {badge && (
+                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                  )}
+                  {item.mood && (
+                    <>
+                      <div className="w-1 h-1 rounded-full bg-slate-700" />
+                      <MoodHeatmap score={item.mood} />
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 flex-wrap text-slate-400">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                    <span>Duration:</span>
+                    <span className="text-xs font-black text-brand-success">
+                      {item.actualDuration || item.duration || "0m"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">Session Time</p>
+                <p className="text-sm font-black text-white whitespace-nowrap">
+                  {formatTimeDisplay(item.startTime)}
+                  {item.endTime && ` — ${formatTimeDisplay(item.endTime)}`}
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setTaskToDelete(item)}
+                className="opacity-0 group-hover:opacity-100 p-3 bg-brand-danger/5 text-brand-danger/40 hover:text-brand-danger hover:bg-brand-danger/10 rounded-2xl transition-all border border-transparent hover:border-brand-danger/20 cursor-pointer"
+                title="Delete activity"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="h-full flex flex-col space-y-8 animate-fade-in pb-12 bg-black">
+    <div className="h-full flex flex-col space-y-6 animate-fade-in pb-12 bg-black">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -152,7 +305,7 @@ export default function Timeline() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
               type="text"
-              placeholder="Filter history..."
+              placeholder="Find activity..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand-primary transition-all w-64 text-white"
@@ -161,9 +314,39 @@ export default function Timeline() {
         </div>
       </div>
 
+      {/* Section Tab Selector (matching TasksBoard layout) */}
+      <div className="flex gap-2 p-2 bg-slate-900/50 rounded-2xl border border-slate-800/80 overflow-x-auto scrollbar-none shadow-lg shrink-0">
+        {sections.map((sec) => (
+          <button
+            key={sec.id}
+            onClick={() => setActiveSection(sec.id)}
+            className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 border cursor-pointer ${
+              activeSection === sec.id
+                ? "bg-white text-black border-white shadow-xl"
+                : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800"
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sec.accent }} />
+            {sec.title}
+          </button>
+        ))}
+      </div>
+
+      {/* Section Header Card */}
+      <div className="p-6 bg-slate-950/50 rounded-3xl border border-slate-800/50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: currentSection.accent }} />
+          <h2 className="text-xl font-black text-white tracking-tighter uppercase">{currentSection.title}</h2>
+        </div>
+        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
+          {sectionTasks.length} {sectionTasks.length === 1 ? 'Activity' : 'Activities'}
+        </p>
+      </div>
+
+      {/* Date-wise Timeline History Content for Selected Section */}
       <div className="flex-1 space-y-12">
-        {groupedTasks.length > 0 ? (
-          groupedTasks.map((group) => (
+        {dateGroupedTasks.length > 0 ? (
+          dateGroupedTasks.map((group) => (
             <div key={group.date} className="relative">
               {/* Date Header */}
               <div className="flex items-center gap-4 mb-8">
@@ -177,126 +360,17 @@ export default function Timeline() {
               </div>
 
               <div className="space-y-10 pl-2">
-                {group.items.map((item) => {
-                  const category = (item.category || item.status || 'college').toLowerCase();
-                  
-                  // Calculate badge based on focus ratio
-                  const plannedMinutes = parseMins(item.duration);
-                  const actualMinutes = item.actualDurationMinutes || 0;
-                  const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) : 0;
-                  
-                  let badge = null;
-                  if (plannedMinutes > 0) {
-                    if (ratio >= 1.1) {
-                      badge = {
-                        label: "Hyper-focused",
-                        className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-                      };
-                    } else if (ratio >= 0.9) {
-                      badge = {
-                        label: "On Track",
-                        className: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-                      };
-                    } else {
-                      if (item.status === 'done') {
-                        badge = {
-                          label: "Efficient",
-                          className: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-                        };
-                      } else {
-                        badge = {
-                          label: "Under-focused",
-                          className: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-                        };
-                      }
-                    }
-                  }
-                  
-                  return (
-                    <div 
-                      key={item.id} 
-                      className="flex items-center gap-8 group relative"
-                    >
-                      {/* Status Circle Icon */}
-                      <div className="w-10 h-10 flex items-center justify-center relative z-10 shrink-0">
-                        <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center bg-black transition-all group-hover:scale-110 shadow-lg ${
-                          category === 'college' ? 'border-brand-primary' : 
-                          category === 'myspace' ? 'border-brand-success' :
-                          category === 'java' || category === 'dsa-java' ? 'border-white' :
-                          category === 'web-dev' || category === 'webdev' ? 'border-brand-secondary' :
-                          category === 'practice' || category === 'dsa-practice' ? 'border-brand-warning' :
-                          'border-slate-500'
-                        }`}>
-                           <div className={`w-3 h-3 rounded-full ${
-                            category === 'college' ? 'bg-brand-primary shadow-[0_0_10px_#0000ff]' : 
-                            category === 'myspace' ? 'bg-brand-success shadow-[0_0_10px_#25d366]' :
-                            category === 'java' || category === 'dsa-java' ? 'bg-white shadow-[0_0_10px_#ffffff]' :
-                            category === 'web-dev' || category === 'webdev' ? 'bg-brand-secondary shadow-[0_0_10px_#ff0000]' :
-                            category === 'practice' || category === 'dsa-practice' ? 'bg-brand-warning shadow-[0_0_10px_#ffd700]' :
-                            'bg-slate-500'
-                          }`} />
-                        </div>
-                      </div>
-
-                      <div className="flex-1 bg-slate-900/20 hover:bg-slate-900/40 border border-slate-800/50 p-6 rounded-4xl transition-all group-hover:border-slate-700">
-                        <div className="flex justify-between items-start gap-6">
-                          <div className="flex-1">
-                            <h4 className="text-xl font-black text-white group-hover:text-brand-primary transition-colors leading-none tracking-tight mb-3">
-                              {item.title}
-                            </h4>
-                            <div className="flex flex-col gap-2.5">
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-black border border-slate-800 text-slate-400 min-w-[60px] text-center">
-                                  {category.replace('-', ' ')}
-                                </span>
-                                {item.mood && (
-                                  <>
-                                    <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                    <MoodHeatmap score={item.mood} />
-                                  </>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3 flex-wrap text-slate-400">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                                  <span>Duration:</span>
-                                  <span className="text-xs font-black text-brand-success">
-                                    {item.actualDuration || item.duration || "0m"}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-6">
-                            <div className="text-right">
-                              <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">Session Time</p>
-                              <p className="text-sm font-black text-white whitespace-nowrap">
-                                {formatTimeDisplay(item.startTime)}
-                                {item.endTime && ` — ${formatTimeDisplay(item.endTime)}`}
-                              </p>
-                            </div>
-                            
-                            <button 
-                              onClick={() => setTaskToDelete(item)}
-                              className="opacity-0 group-hover:opacity-100 p-3 bg-brand-danger/5 text-brand-danger/40 hover:text-brand-danger hover:bg-brand-danger/10 rounded-2xl transition-all border border-transparent hover:border-brand-danger/20"
-                              title="Delete activity"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {group.items.map((item) => renderTaskItem(item))}
               </div>
             </div>
           ))
         ) : (
-          <div className="flex flex-col items-center justify-center py-40 text-slate-700">
+          <div className="flex flex-col items-center justify-center py-32 text-slate-700">
             <History className="w-20 h-20 mb-6 opacity-5" />
-            <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">No History Yet</h3>
-            <p className="text-sm mt-2 font-bold text-slate-600 uppercase tracking-widest">Complete tasks to build your timeline</p>
+            <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">No History Found</h3>
+            <p className="text-sm mt-2 font-bold text-slate-600 uppercase tracking-widest">
+              {searchQuery ? 'Try clearing your search query' : `No completed activities in ${currentSection.title}`}
+            </p>
           </div>
         )}
       </div>
@@ -316,7 +390,7 @@ export default function Timeline() {
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setTaskToDelete(null)}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 bg-slate-800 hover:text-white transition-all"
+                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 bg-slate-800 hover:text-white transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -325,7 +399,7 @@ export default function Timeline() {
                   deleteTask(taskToDelete.id);
                   setTaskToDelete(null);
                 }}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-danger text-white hover:scale-105 transition-all shadow-xl shadow-brand-danger/20"
+                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-danger text-white hover:scale-105 transition-all shadow-xl shadow-brand-danger/20 cursor-pointer"
               >
                 Confirm
               </button>
@@ -336,3 +410,5 @@ export default function Timeline() {
     </div>
   );
 }
+
+

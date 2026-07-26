@@ -141,15 +141,29 @@ function TasksAnalytics({ tasks }) {
     'dsa-java': 'DSA Java',
     'web-dev': 'Web Dev',
     'dsa-practice': 'DSA Practice',
+    'aiml': 'AIML',
     'done': 'Finished'
+  };
+
+  const normalizeCatId = (catId) => {
+    if (!catId) return 'college';
+    const c = catId.toLowerCase().trim();
+    if (c === "todo" || c === "college" || c === "college work" || c === "college-work") return 'college';
+    if (c === "myspace" || c === "my space" || c === "my-space") return 'myspace';
+    if (c === "java" || c === "dsa-java" || c === "dsa java") return 'dsa-java';
+    if (c === "webdev" || c === "web-dev" || c === "web dev") return 'web-dev';
+    if (c === "practice" || c === "dsa-practice" || c === "dsa practice") return 'dsa-practice';
+    if (c === "aiml" || c === "ai-ml" || c === "ai & ml" || c === "ai/ml" || c === "ai") return 'aiml';
+    return c;
   };
 
   const catCounts = useMemo(() => {
     const counts = {};
     const completedTasks = tasks.filter(t => t.status === 'done');
     completedTasks.forEach(t => {
-      const catId = t.category || 'college';
-      const label = categories[catId] || 'Other';
+      const rawCat = t.category || t.status || 'college';
+      const normCat = normalizeCatId(rawCat);
+      const label = categories[normCat] || (normCat.charAt(0).toUpperCase() + normCat.slice(1));
       counts[label] = (counts[label] || 0) + 1;
     });
     return counts;
@@ -161,6 +175,7 @@ function TasksAnalytics({ tasks }) {
     'dsa-java': '#ffffff', // White
     'web-dev': '#ff0000', // Red
     'dsa-practice': '#ffd700', // Yellow
+    'aiml': '#a855f7',    // Purple
     'done': '#25d366'     // Green
   };
 
@@ -352,25 +367,26 @@ function DurationAnalytics({ tasks }) {
 
   // Category Distribution
   const categoryDurationData = useMemo(() => {
-    const cats = { college: 0, myspace: 0, java: 0, "web-dev": 0, practice: 0, other: 0 };
+    const cats = { college: 0, myspace: 0, java: 0, "web-dev": 0, practice: 0, aiml: 0 };
     focusHistory.forEach(s => {
       const rawCat = (s.category || "").toLowerCase();
-      let key = "other";
+      let key = "college";
       if (rawCat.includes("college")) key = "college";
-      else if (rawCat.includes("myspace")) key = "myspace";
+      else if (rawCat.includes("myspace") || rawCat.includes("my space")) key = "myspace";
       else if (rawCat.includes("java")) key = "java";
       else if (rawCat.includes("web")) key = "web-dev";
       else if (rawCat.includes("practice")) key = "practice";
+      else if (rawCat.includes("aiml") || rawCat.includes("ai")) key = "aiml";
 
       cats[key] += s.minutes || 0;
     });
 
     return {
-      labels: ['College', 'MySpace', 'Java / DSA', 'Web Dev', 'Practice', 'Other'],
+      labels: ['College Work', 'MySpace', 'DSA Java', 'Web Dev', 'DSA Practice', 'AIML'],
       datasets: [
         {
-          data: [cats.college, cats.myspace, cats.java, cats["web-dev"], cats.practice, cats.other],
-          backgroundColor: ['#2563eb', '#25d366', '#ffffff', '#ff0000', '#ffd700', '#94a3b8'],
+          data: [cats.college, cats.myspace, cats.java, cats["web-dev"], cats.practice, cats.aiml],
+          backgroundColor: ['#0000ff', '#25d366', '#ffffff', '#ff0000', '#ffd700', '#a855f7'],
           borderWidth: 0,
         }
       ]
@@ -487,9 +503,19 @@ function FocusAnalytics() {
       'dsa-java': 'DSA Java',
       'web-dev': 'Web Dev',
       'dsa-practice': 'DSA Practice',
+      'aiml': 'AIML',
     };
     focusHistory.forEach(s => {
-      const label = categories[s.category] || 'Other';
+      const rawCat = (s.category || "").toLowerCase();
+      let normCat = 'college';
+      if (rawCat.includes('college')) normCat = 'college';
+      else if (rawCat.includes('myspace') || rawCat.includes('my space')) normCat = 'myspace';
+      else if (rawCat.includes('java')) normCat = 'dsa-java';
+      else if (rawCat.includes('web')) normCat = 'web-dev';
+      else if (rawCat.includes('practice')) normCat = 'dsa-practice';
+      else if (rawCat.includes('aiml') || rawCat.includes('ai')) normCat = 'aiml';
+
+      const label = categories[normCat] || 'AIML';
       counts[label] = (counts[label] || 0) + s.minutes;
     });
     return counts;
@@ -501,6 +527,7 @@ function FocusAnalytics() {
     'dsa-java': '#ffffff',
     'web-dev': '#ff0000',
     'dsa-practice': '#ffd700',
+    'aiml': '#a855f7',
   };
 
   const chartLabels = Object.keys(categoryFocusCounts);
@@ -511,9 +538,10 @@ function FocusAnalytics() {
       'dsa-java': 'DSA Java',
       'web-dev': 'Web Dev',
       'dsa-practice': 'DSA Practice',
+      'aiml': 'AIML',
     };
     const id = Object.keys(categories).find(key => categories[key] === label);
-    return CATEGORY_COLORS[id] || '#64748b';
+    return CATEGORY_COLORS[id] || '#a855f7';
   });
 
   const categoryFocusData = {
@@ -668,14 +696,23 @@ function MoodAnalytics({ tasks }) {
       'dsa-java': 'DSA Java',
       'web-dev': 'Web Dev',
       'dsa-practice': 'DSA Practice',
+      'aiml': 'AIML',
     };
     const totals = {};
     const counts = {};
     
     tasks.forEach(t => {
       if (t.mood) {
-        const cat = t.category || t.status || 'college';
-        const label = categories[cat] || 'Other';
+        const rawCat = (t.category || t.status || 'college').toLowerCase();
+        let normCat = 'college';
+        if (rawCat.includes('college')) normCat = 'college';
+        else if (rawCat.includes('myspace') || rawCat.includes('my space')) normCat = 'myspace';
+        else if (rawCat.includes('java')) normCat = 'dsa-java';
+        else if (rawCat.includes('web')) normCat = 'web-dev';
+        else if (rawCat.includes('practice')) normCat = 'dsa-practice';
+        else if (rawCat.includes('aiml') || rawCat.includes('ai')) normCat = 'aiml';
+
+        const label = categories[normCat] || 'AIML';
         totals[label] = (totals[label] || 0) + t.mood;
         counts[label] = (counts[label] || 0) + 1;
       }
@@ -700,8 +737,9 @@ function MoodAnalytics({ tasks }) {
             'DSA Java': '#ffffff',
             'Web Dev': '#ff0000',
             'DSA Practice': '#ffd700',
+            'AIML': '#a855f7',
           };
-          return categories[label] || '#64748b';
+          return categories[label] || '#a855f7';
         }),
         borderRadius: 4
       }

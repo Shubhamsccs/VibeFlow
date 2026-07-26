@@ -16,6 +16,7 @@ const COLUMNS = [
   { id: "dsa-java", title: "DSA Java", accent: "#ffffff" },
   { id: "web-dev", title: "Web Development", accent: "#ff0000" },
   { id: "dsa-practice", title: "DSA Practice", accent: "#ffd700" },
+  { id: "aiml", title: "AIML", accent: "#a855f7" },
 ];
 
 export default function TasksBoard() {
@@ -28,10 +29,12 @@ export default function TasksBoard() {
   const [viewMode, setViewMode] = useState("kanban");
 
   const normalizeStatus = (status) => {
-    if (!status || status === "todo") return "college";
-    if (status === "webdev") return "web-dev";
-    if (status === "java") return "dsa-java";
-    if (status === "practice") return "dsa-practice";
+    if (!status || status === "todo" || status === "college" || status === "college work" || status === "college-work") return "college";
+    if (status === "myspace" || status === "my space" || status === "my-space") return "myspace";
+    if (status === "webdev" || status === "web-dev" || status === "web dev") return "web-dev";
+    if (status === "java" || status === "dsa-java" || status === "dsa java") return "dsa-java";
+    if (status === "practice" || status === "dsa-practice" || status === "dsa practice") return "dsa-practice";
+    if (status === "aiml" || status === "ai-ml" || status === "ai & ml" || status === "ai/ml" || status === "ai") return "aiml";
     return status;
   };
 
@@ -149,7 +152,7 @@ export default function TasksBoard() {
 
         {/* Tab Selector — Only shown in Kanban mode */}
         {viewMode === "kanban" && (
-          <div className="flex gap-2 p-1 bg-slate-900/30 rounded-2xl border border-slate-800 overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 p-2 bg-slate-900/50 rounded-2xl border border-slate-800/80 overflow-x-auto scrollbar-none shadow-lg shrink-0">
             {COLUMNS.map((col) => (
               <button
                 key={col.id}
