@@ -49,11 +49,15 @@ const DEFAULT_SECTIONS = [
   { id: "aiml", title: "AIML", accent: "#a855f7" },
 ];
 
+const FULL_HISTORY_ID = "__full_history__";
+
 export default function Timeline() {
   const { tasks, deleteTask } = useTaskStore();
   const [activeSection, setActiveSection] = useState("college");
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const isFullHistory = activeSection === FULL_HISTORY_ID;
 
   // Build full list of sections including any custom categories found in tasks
   const sections = useMemo(() => {
@@ -76,7 +80,9 @@ export default function Timeline() {
 
   const currentSection = sections.find(s => s.id === activeSection) || sections[0];
 
+  // Tasks for section-wise view
   const sectionTasks = useMemo(() => {
+    if (isFullHistory) return [];
     return tasks.filter(t => {
       if (t.status !== 'done') return false;
 
@@ -90,7 +96,21 @@ export default function Timeline() {
       const catMatch = t.category?.toLowerCase().includes(q) || cat.includes(q);
       return titleMatch || catMatch;
     });
-  }, [tasks, activeSection, searchQuery]);
+  }, [tasks, activeSection, searchQuery, isFullHistory]);
+
+  // Tasks for full history view (all completed)
+  const fullHistoryTasks = useMemo(() => {
+    if (!isFullHistory) return [];
+    return tasks.filter(t => {
+      if (t.status !== 'done') return false;
+      const q = searchQuery.toLowerCase();
+      if (!q) return true;
+      const titleMatch = t.title?.toLowerCase().includes(q);
+      const cat = normalizeCategory(t.category || t.status);
+      const catMatch = t.category?.toLowerCase().includes(q) || cat.includes(q);
+      return titleMatch || catMatch;
+    });
+  }, [tasks, searchQuery, isFullHistory]);
 
   // Format time string
   const formatTimeDisplay = (timeStr) => {
@@ -128,10 +148,10 @@ export default function Timeline() {
     }
   };
 
-  // Group section tasks date-wise reliably
-  const dateGroupedTasks = useMemo(() => {
+  // Helper: group tasks by date
+  const groupTasksByDate = (taskList) => {
     const groups = {};
-    sectionTasks.forEach(task => {
+    taskList.forEach(task => {
       let dateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
       if (dateStr.includes('/')) {
         try {
@@ -141,38 +161,51 @@ export default function Timeline() {
         }
       }
 
-      const dateKey = dateStr;
-      if (!groups[dateKey]) {
-        groups[dateKey] = {
-          date: dateKey,
-          items: [],
-          totalMinutes: 0
-        };
+      if (!groups[dateStr]) {
+        groups[dateStr] = { date: dateStr, items: [], totalMinutes: 0 };
       }
-      groups[dateKey].items.push(task);
+      groups[dateStr].items.push(task);
 
       const mins = task.actualDurationMinutes || 0;
       if (mins > 0) {
-        groups[dateKey].totalMinutes += mins;
+        groups[dateStr].totalMinutes += mins;
       } else if (task.duration) {
-        groups[dateKey].totalMinutes += parseMins(task.duration);
+        groups[dateStr].totalMinutes += parseMins(task.duration);
       }
     });
 
     const validGroups = Object.values(groups).filter(g => g.items.length > 0);
-
     validGroups.forEach(group => {
       group.items.sort((a, b) => timeToMinutes(b.startTime) - timeToMinutes(a.startTime));
     });
 
     return validGroups.sort((a, b) => {
-      try {
-        return compareDesc(parseISO(a.date), parseISO(b.date));
-      } catch {
-        return 0;
-      }
+      try { return compareDesc(parseISO(a.date), parseISO(b.date)); }
+      catch { return 0; }
     });
+  };
+
+  // Group section tasks date-wise
+  const dateGroupedTasks = useMemo(() => {
+    return groupTasksByDate(sectionTasks);
   }, [sectionTasks]);
+
+  // Group full history tasks date-wise
+  const dateGroupedFullHistory = useMemo(() => {
+    return groupTasksByDate(fullHistoryTasks);
+  }, [fullHistoryTasks]);
+
+  const getCategoryAccent = (cat) => {
+    switch (cat) {
+      case 'college': return { border: 'border-brand-primary', dot: 'bg-brand-primary shadow-[0_0_10px_#0000ff]' };
+      case 'myspace': return { border: 'border-brand-success', dot: 'bg-brand-success shadow-[0_0_10px_#25d366]' };
+      case 'dsa-java': return { border: 'border-white', dot: 'bg-white shadow-[0_0_10px_#ffffff]' };
+      case 'web-dev': return { border: 'border-brand-secondary', dot: 'bg-brand-secondary shadow-[0_0_10px_#ff0000]' };
+      case 'dsa-practice': return { border: 'border-brand-warning', dot: 'bg-brand-warning shadow-[0_0_10px_#ffd700]' };
+      case 'aiml': return { border: 'border-purple-500', dot: 'bg-purple-500 shadow-[0_0_10px_#a855f7]' };
+      default: return { border: 'border-slate-500', dot: 'bg-slate-500' };
+    }
+  };
 
   const MoodHeatmap = ({ score }) => {
     return (
@@ -191,6 +224,7 @@ export default function Timeline() {
 
   const renderTaskItem = (item) => {
     const category = normalizeCategory(item.category || item.status || 'college');
+    const { border, dot } = getCategoryAccent(category);
 
     const plannedMinutes = parseMins(item.duration);
     const actualMinutes = item.actualDurationMinutes || 0;
@@ -213,24 +247,8 @@ export default function Timeline() {
       <div key={item.id} className="flex items-center gap-8 group relative">
         {/* Status Circle Icon */}
         <div className="w-10 h-10 flex items-center justify-center relative z-10 shrink-0">
-          <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center bg-black transition-all group-hover:scale-110 shadow-lg ${
-            category === 'college' ? 'border-brand-primary' : 
-            category === 'myspace' ? 'border-brand-success' :
-            category === 'dsa-java' ? 'border-white' :
-            category === 'web-dev' ? 'border-brand-secondary' :
-            category === 'dsa-practice' ? 'border-brand-warning' :
-            category === 'aiml' ? 'border-purple-500' :
-            'border-slate-500'
-          }`}>
-            <div className={`w-3 h-3 rounded-full ${
-              category === 'college' ? 'bg-brand-primary shadow-[0_0_10px_#0000ff]' : 
-              category === 'myspace' ? 'bg-brand-success shadow-[0_0_10px_#25d366]' :
-              category === 'dsa-java' ? 'bg-white shadow-[0_0_10px_#ffffff]' :
-              category === 'web-dev' ? 'bg-brand-secondary shadow-[0_0_10px_#ff0000]' :
-              category === 'dsa-practice' ? 'bg-brand-warning shadow-[0_0_10px_#ffd700]' :
-              category === 'aiml' ? 'bg-purple-500 shadow-[0_0_10px_#a855f7]' :
-              'bg-slate-500'
-            }`} />
+          <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center bg-black transition-all group-hover:scale-110 shadow-lg ${border}`}>
+            <div className={`w-3 h-3 rounded-full ${dot}`} />
           </div>
         </div>
 
@@ -291,6 +309,9 @@ export default function Timeline() {
     );
   };
 
+  const activeDateGroups = isFullHistory ? dateGroupedFullHistory : dateGroupedTasks;
+  const activeTaskCount  = isFullHistory ? fullHistoryTasks.length : sectionTasks.length;
+
   return (
     <div className="h-full flex flex-col space-y-6 animate-fade-in pb-12 bg-black">
       {/* Header Section */}
@@ -314,8 +335,25 @@ export default function Timeline() {
         </div>
       </div>
 
-      {/* Section Tab Selector (matching TasksBoard layout) */}
+      {/* Section Tab Selector — Full History tab first, then section tabs */}
       <div className="flex gap-2 p-2 bg-slate-900/50 rounded-2xl border border-slate-800/80 overflow-x-auto scrollbar-none shadow-lg shrink-0">
+        {/* Full History tab */}
+        <button
+          onClick={() => setActiveSection(FULL_HISTORY_ID)}
+          className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 border cursor-pointer ${
+            isFullHistory
+              ? "bg-white text-black border-white shadow-xl"
+              : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800"
+          }`}
+        >
+          <History className="w-3.5 h-3.5" />
+          Full History
+        </button>
+
+        {/* Divider */}
+        <div className="w-px bg-slate-800 my-1.5 shrink-0" />
+
+        {/* Section tabs */}
         {sections.map((sec) => (
           <button
             key={sec.id}
@@ -332,21 +370,30 @@ export default function Timeline() {
         ))}
       </div>
 
-      {/* Section Header Card */}
+      {/* Section / Full History Header Card */}
       <div className="p-6 bg-slate-950/50 rounded-3xl border border-slate-800/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: currentSection.accent }} />
-          <h2 className="text-xl font-black text-white tracking-tighter uppercase">{currentSection.title}</h2>
+          {isFullHistory ? (
+            <>
+              <div className="w-1.5 h-8 rounded-full bg-gradient-to-b from-brand-primary via-purple-500 to-brand-success" />
+              <h2 className="text-xl font-black text-white tracking-tighter uppercase">Full History</h2>
+            </>
+          ) : (
+            <>
+              <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: currentSection.accent }} />
+              <h2 className="text-xl font-black text-white tracking-tighter uppercase">{currentSection.title}</h2>
+            </>
+          )}
         </div>
         <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
-          {sectionTasks.length} {sectionTasks.length === 1 ? 'Activity' : 'Activities'}
+          {activeTaskCount} {activeTaskCount === 1 ? 'Activity' : 'Activities'}
         </p>
       </div>
 
-      {/* Date-wise Timeline History Content for Selected Section */}
+      {/* Date-wise Timeline Content */}
       <div className="flex-1 space-y-12">
-        {dateGroupedTasks.length > 0 ? (
-          dateGroupedTasks.map((group) => (
+        {activeDateGroups.length > 0 ? (
+          activeDateGroups.map((group) => (
             <div key={group.date} className="relative">
               {/* Date Header */}
               <div className="flex items-center gap-4 mb-8">
@@ -369,7 +416,11 @@ export default function Timeline() {
             <History className="w-20 h-20 mb-6 opacity-5" />
             <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">No History Found</h3>
             <p className="text-sm mt-2 font-bold text-slate-600 uppercase tracking-widest">
-              {searchQuery ? 'Try clearing your search query' : `No completed activities in ${currentSection.title}`}
+              {searchQuery
+                ? 'Try clearing your search query'
+                : isFullHistory
+                  ? 'No completed activities yet'
+                  : `No completed activities in ${currentSection.title}`}
             </p>
           </div>
         )}
@@ -410,5 +461,3 @@ export default function Timeline() {
     </div>
   );
 }
-
-
