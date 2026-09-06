@@ -1,54 +1,35 @@
 import { useState, useMemo } from "react";
-import { 
-  Plus, 
-  Search, 
-  AlertCircle,
-  Lock,
-  History
+import {
+  Plus,
+  Search,
+  Kanban,
+  Grid,
+  Zap,
+  Coffee,
+  Layers,
+  Settings2,
 } from "lucide-react";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { useTaskStore } from "../store/useTaskStore";
 import TaskCard from "../components/TaskCard";
 
-const COLUMNS = [
-  { id: "college", title: "College Work", accent: "#0000ff" },
-  { id: "myspace", title: "MySpace", accent: "#25d366" },
-  { id: "dsa-java", title: "DSA Java", accent: "#ffffff" },
-  { id: "web-dev", title: "Web Development", accent: "#ff0000" },
-  { id: "dsa-practice", title: "DSA Practice", accent: "#ffd700" },
-  { id: "aiml", title: "AIML", accent: "#a855f7" },
-];
-
 export default function TasksBoard() {
-  const { tasks, openTaskModal, moveTask, deleteTask, updateTask } = useTaskStore();
+  const { tasks, columns, openTaskModal, moveTask, updateTask, openSettingsModal } = useTaskStore();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("college");
-  const [taskToDelete, setTaskToDelete] = useState(null);
-  
-  // View mode: kanban | eisenhower
-  const [viewMode, setViewMode] = useState("kanban");
-
-  const normalizeStatus = (status) => {
-    if (!status || status === "todo" || status === "college" || status === "college work" || status === "college-work") return "college";
-    if (status === "myspace" || status === "my space" || status === "my-space") return "myspace";
-    if (status === "webdev" || status === "web-dev" || status === "web dev") return "web-dev";
-    if (status === "java" || status === "dsa-java" || status === "dsa java") return "dsa-java";
-    if (status === "practice" || status === "dsa-practice" || status === "dsa practice") return "dsa-practice";
-    if (status === "aiml" || status === "ai-ml" || status === "ai & ml" || status === "ai/ml" || status === "ai") return "aiml";
-    return status;
-  };
+  const [energyFilter, setEnergyFilter] = useState("all"); // 'all' | 'deep' | 'standard' | 'light'
+  const [viewMode, setViewMode] = useState("kanban"); // 'kanban' | 'eisenhower'
 
   const handleDragEnd = (result) => {
     if (!result.destination) return;
-    
+
     if (viewMode === "kanban") {
       moveTask(result.draggableId, result.destination.droppableId, result.destination.index);
     } else {
       // Eisenhower Matrix Drag & Drop
       const taskId = result.draggableId;
       const destQuad = result.destination.droppableId;
-      const today = new Date().toLocaleDateString('en-CA');
-      
+      const today = new Date().toLocaleDateString("en-CA");
+
       let updates = {};
       if (destQuad === "q1") {
         updates = { priority: "high", dueDate: today };
@@ -63,24 +44,27 @@ export default function TasksBoard() {
     }
   };
 
-  // Kanban tasks
-  const currentColumn = COLUMNS.find(c => c.id === activeTab);
-  const columnTasks = tasks.filter((t) => normalizeStatus(t.status) === activeTab && 
-    (t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-     t.description?.toLowerCase().includes(searchQuery.toLowerCase())));
+  // Filter tasks by search query and energy level
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const matchesSearch =
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesEnergy = energyFilter === "all" || t.energyLevel === energyFilter;
+      return matchesSearch && matchesEnergy;
+    });
+  }, [tasks, searchQuery, energyFilter]);
 
-  // Eisenhower quadrants tasks
+  // Active non-completed tasks for Eisenhower
   const activeTasks = useMemo(() => {
-    return tasks.filter(t => t.status !== "done" &&
-      (t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-       t.description?.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }, [tasks, searchQuery]);
+    return filteredTasks.filter((t) => t.status !== "done");
+  }, [filteredTasks]);
 
+  // Eisenhower Matrix quadrants
   const quadrants = useMemo(() => {
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrow = tomorrowDate.toLocaleDateString('en-CA');
+    const tomorrow = tomorrowDate.toLocaleDateString("en-CA");
 
     const isUrgent = (task) => {
       if (!task.dueDate) return false;
@@ -92,261 +76,258 @@ export default function TasksBoard() {
     };
 
     return {
-      q1: activeTasks.filter(t => isImportant(t) && isUrgent(t)),
-      q2: activeTasks.filter(t => isImportant(t) && !isUrgent(t)),
-      q3: activeTasks.filter(t => !isImportant(t) && isUrgent(t)),
-      q4: activeTasks.filter(t => !isImportant(t) && !isUrgent(t)),
+      q1: activeTasks.filter((t) => isImportant(t) && isUrgent(t)),
+      q2: activeTasks.filter((t) => isImportant(t) && !isUrgent(t)),
+      q3: activeTasks.filter((t) => !isImportant(t) && isUrgent(t)),
+      q4: activeTasks.filter((t) => !isImportant(t) && !isUrgent(t)),
     };
   }, [activeTasks]);
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-fade-in bg-black">
-      {/* Header & Tabs */}
-      <div className="flex flex-col space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Activities</h1>
-            <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Manage your focused sessions</p>
-          </div>
-          
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* View Mode Toggle */}
-            <div className="flex bg-slate-900/40 border border-slate-800 p-0.5 rounded-lg shrink-0">
-              <button
-                onClick={() => setViewMode("kanban")}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  viewMode === "kanban" ? "bg-white text-black font-black" : "text-slate-500 hover:text-slate-350"
-                }`}
-              >
-                Kanban
-              </button>
-              <button
-                onClick={() => setViewMode("eisenhower")}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  viewMode === "eisenhower" ? "bg-white text-black font-black" : "text-slate-500 hover:text-slate-350"
-                }`}
-              >
-                Eisenhower
-              </button>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Find activity..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand-primary transition-all w-64 text-white"
-              />
-            </div>
-            <button 
-              onClick={() => openTaskModal({ status: activeTab })}
-              className="bg-brand-primary text-white px-4 py-2 rounded-lg text-sm font-black flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-brand-primary/20 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              NEW TASK
-            </button>
-          </div>
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* Top Controls Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Execution Board
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Organize work by custom columns or strategic Eisenhower quadrants.
+          </p>
         </div>
 
-        {/* Tab Selector — Only shown in Kanban mode */}
-        {viewMode === "kanban" && (
-          <div className="flex gap-2 p-2 bg-slate-900/50 rounded-2xl border border-slate-800/80 overflow-x-auto scrollbar-none shadow-lg shrink-0">
-            {COLUMNS.map((col) => (
+        {/* Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* View Toggle */}
+          <div className="flex p-1 bg-slate-900 border border-white/[0.08] rounded-xl">
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === "kanban"
+                  ? "bg-brand-primary text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span>Kanban</span>
+            </button>
+            <button
+              onClick={() => setViewMode("eisenhower")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === "eisenhower"
+                  ? "bg-brand-primary text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>Eisenhower</span>
+            </button>
+          </div>
+
+          {/* Energy Level Filter */}
+          <div className="flex p-1 bg-slate-900 border border-white/[0.08] rounded-xl text-xs">
+            {[
+              { id: "all", label: "All" },
+              { id: "deep", label: "Deep", icon: Zap, color: "text-brand-primary" },
+              { id: "standard", label: "Standard", icon: Layers, color: "text-brand-cyan" },
+              { id: "light", label: "Quick", icon: Coffee, color: "text-amber-400" },
+            ].map((f) => (
               <button
-                key={col.id}
-                onClick={() => setActiveTab(col.id)}
-                className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 border ${
-                  activeTab === col.id
-                    ? "bg-white text-black border-white shadow-xl"
-                    : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800"
+                key={f.id}
+                onClick={() => setEnergyFilter(f.id)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  energyFilter === f.id
+                    ? "bg-slate-800 text-white font-bold"
+                    : "text-slate-400 hover:text-slate-200"
                 }`}
               >
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.accent }} />
-                {col.title}
+                {f.icon && <f.icon className={`w-3 h-3 ${f.color}`} />}
+                <span>{f.label}</span>
               </button>
             ))}
           </div>
-        )}
+
+          {/* Search Box */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tasks..."
+              className="bg-slate-900 border border-white/[0.08] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-primary w-36 sm:w-48"
+            />
+          </div>
+
+          {/* Settings / Column Manager Button */}
+          <button
+            onClick={openSettingsModal}
+            className="p-2 rounded-xl bg-slate-900 border border-white/[0.08] text-slate-400 hover:text-white cursor-pointer"
+            title="Edit columns & colors"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
+
+          {/* New Task Button */}
+          <button
+            onClick={() => openTaskModal()}
+            className="btn-primary py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Task</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      {viewMode === "kanban" ? (
-        /* Kanban DND Board */
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex-1 flex flex-col min-h-0 bg-slate-950/50 rounded-3xl border border-slate-800/50 overflow-hidden">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-black">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: currentColumn.accent }} />
-                <h2 className="text-xl font-black text-white tracking-tighter uppercase">{currentColumn.title}</h2>
-              </div>
-              <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
-                {columnTasks.length} {columnTasks.length === 1 ? 'Activity' : 'Activities'}
-              </p>
-            </div>
+      {/* Main Drag-and-Drop Area */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        {viewMode === "kanban" ? (
+          /* Multi-Column Kanban View */
+          <div className="flex gap-4 overflow-x-auto pb-6 pt-1 no-scrollbar min-h-[600px]">
+            {columns.map((column) => {
+              const colTasks = filteredTasks.filter((t) => t.status === column.id);
 
-            <Droppable droppableId={currentColumn.id}>
-              {(provided, snapshot) => (
+              return (
                 <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className={`flex-1 p-8 overflow-y-auto no-scrollbar transition-colors ${
-                    snapshot.isDraggingOver ? "bg-slate-900/20" : ""
-                  }`}
+                  key={column.id}
+                  className="w-72 sm:w-80 shrink-0 glass-panel rounded-3xl p-4 flex flex-col min-h-[500px]"
                 >
-                  <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {columnTasks.length === 0 && !snapshot.isDraggingOver && (
-                      <div className="col-span-full flex flex-col items-center justify-center py-32 text-slate-700">
-                        <Lock className="w-12 h-12 mb-4 opacity-10" />
-                        <h3 className="text-lg font-bold text-slate-500">No active tasks in this section</h3>
-                        <button 
-                          onClick={() => openTaskModal({ status: activeTab })}
-                          className="mt-4 text-brand-primary font-bold hover:underline uppercase text-xs tracking-widest cursor-pointer"
-                        >
-                          Create your first activity
-                        </button>
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: column.accent || "#6366f1" }}
+                      />
+                      <h3 className="text-xs font-bold text-white tracking-wide uppercase">
+                        {column.title}
+                      </h3>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded-full border border-white/[0.04]">
+                        {colTasks.length}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => openTaskModal({ status: column.id })}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      title={`Add task to ${column.title}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Task Droppable Column */}
+                  <Droppable droppableId={column.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`flex-1 space-y-2.5 transition-colors rounded-2xl p-1 ${
+                          snapshot.isDraggingOver ? "bg-slate-900/60" : ""
+                        }`}
+                      >
+                        {colTasks.map((task, index) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={index}
+                            columnAccent={column.accent}
+                          />
+                        ))}
+                        {provided.placeholder}
+
+                        {colTasks.length === 0 && (
+                          <div className="h-36 flex flex-col items-center justify-center border border-dashed border-white/[0.06] rounded-2xl text-slate-600 text-xs text-center p-3">
+                            <span>Drop tasks here</span>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {columnTasks.map((task, index) => (
-                      <TaskCard 
-                        key={task.id} 
-                        task={task} 
-                        index={index} 
-                        columnAccent={currentColumn.accent} 
-                        onDeleteClick={() => setTaskToDelete(task)}
-                      />
-                    ))}
-                    {provided.placeholder}
+                  </Droppable>
+                </div>
+              );
+            })}
+
+            {/* Done Column if not already in custom columns */}
+            {!columns.some((c) => c.id === "done") && (
+              <div className="w-72 sm:w-80 shrink-0 glass-panel rounded-3xl p-4 flex flex-col min-h-[500px]">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/[0.06]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                    <h3 className="text-xs font-bold text-white tracking-wide uppercase">Done</h3>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded-full border border-white/[0.04]">
+                      {filteredTasks.filter((t) => t.status === "done").length}
+                    </span>
                   </div>
                 </div>
-              )}
-            </Droppable>
-          </div>
-        </DragDropContext>
-      ) : (
-        /* Eisenhower Matrix Grid */
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 overflow-y-auto no-scrollbar pb-6">
-            <EisenhowerQuadrant
-              id="q1"
-              title="Quadrant I: Do First"
-              subtitle="Urgent & Important"
-              tasks={quadrants.q1}
-              borderColor="border-red-500/20 bg-red-500/[0.01]"
-              accentColor="#ef4444"
-              setTaskToDelete={setTaskToDelete}
-            />
-            <EisenhowerQuadrant
-              id="q2"
-              title="Quadrant II: Plan / Schedule"
-              subtitle="Important, Not Urgent"
-              tasks={quadrants.q2}
-              borderColor="border-blue-500/20 bg-blue-500/[0.01]"
-              accentColor="#3b82f6"
-              setTaskToDelete={setTaskToDelete}
-            />
-            <EisenhowerQuadrant
-              id="q3"
-              title="Quadrant III: Delegate / Batch"
-              subtitle="Urgent, Less Important"
-              tasks={quadrants.q3}
-              borderColor="border-amber-500/20 bg-amber-500/[0.01]"
-              accentColor="#f59e0b"
-              setTaskToDelete={setTaskToDelete}
-            />
-            <EisenhowerQuadrant
-              id="q4"
-              title="Quadrant IV: Eliminate"
-              subtitle="Neither Urgent nor Important"
-              tasks={quadrants.q4}
-              borderColor="border-slate-800 bg-slate-900/[0.01]"
-              accentColor="#64748b"
-              setTaskToDelete={setTaskToDelete}
-            />
-          </div>
-        </DragDropContext>
-      )}
 
-      {/* Delete Confirmation Modal */}
-      {taskToDelete && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-4xl p-10 max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
-            <div className="w-20 h-20 bg-brand-danger/10 rounded-3xl flex items-center justify-center mb-8 mx-auto">
-              <AlertCircle className="w-10 h-10 text-brand-danger" />
-            </div>
-            <h3 className="text-3xl font-black text-white tracking-tighter mb-3 text-center uppercase">Delete Task?</h3>
-            <p className="text-slate-400 mb-10 text-center leading-relaxed">
-              Are you sure you want to delete <span className="text-white font-bold">"{taskToDelete.title}"</span>? 
-              This action cannot be undone.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setTaskToDelete(null)}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 bg-slate-800 hover:text-white transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  deleteTask(taskToDelete.id);
-                  setTaskToDelete(null);
-                }}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-danger text-white hover:scale-105 transition-all shadow-xl shadow-brand-danger/20 cursor-pointer"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EisenhowerQuadrant({ id, title, subtitle, tasks, borderColor, accentColor, setTaskToDelete }) {
-  return (
-    <div className={`rounded-2xl border ${borderColor} p-5 flex flex-col min-h-[300px] overflow-hidden`}>
-      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-900/60">
-        <div>
-          <h3 className="text-xs font-black uppercase tracking-widest text-white">{title}</h3>
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5">{subtitle}</p>
-        </div>
-        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-950 text-slate-400 border border-slate-900">
-          {tasks.length}
-        </span>
-      </div>
-
-      <Droppable droppableId={id}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`flex-1 overflow-y-auto no-scrollbar rounded-xl transition-colors p-1 ${
-              snapshot.isDraggingOver ? "bg-slate-900/10" : ""
-            }`}
-          >
-            {tasks.length === 0 && !snapshot.isDraggingOver ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-700 py-12 text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Quadrant Empty</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {tasks.map((task, index) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    index={index} 
-                    columnAccent={accentColor} 
-                    onDeleteClick={() => setTaskToDelete(task)}
-                  />
-                ))}
+                <Droppable droppableId="done">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`flex-1 space-y-2.5 transition-colors rounded-2xl p-1 ${
+                        snapshot.isDraggingOver ? "bg-slate-900/60" : ""
+                      }`}
+                    >
+                      {filteredTasks
+                        .filter((t) => t.status === "done")
+                        .map((task, index) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={index}
+                            columnAccent="#10b981"
+                          />
+                        ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </div>
             )}
-            {provided.placeholder}
+          </div>
+        ) : (
+          /* Eisenhower Matrix View */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { id: "q1", title: "Urgent & Important (Do First)", tasks: quadrants.q1, accent: "#f43f5e" },
+              { id: "q2", title: "Not Urgent & Important (Schedule)", tasks: quadrants.q2, accent: "#6366f1" },
+              { id: "q3", title: "Urgent & Not Important (Delegate/Quick)", tasks: quadrants.q3, accent: "#f59e0b" },
+              { id: "q4", title: "Not Urgent & Not Important (Eliminate)", tasks: quadrants.q4, accent: "#71717a" },
+            ].map((quad) => (
+              <div key={quad.id} className="glass-panel rounded-3xl p-5 flex flex-col min-h-[300px]">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/[0.06]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: quad.accent }} />
+                    <h3 className="text-xs font-bold text-white uppercase">{quad.title}</h3>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-bold bg-slate-950 px-2 py-0.5 rounded-full">
+                    {quad.tasks.length}
+                  </span>
+                </div>
+
+                <Droppable droppableId={quad.id}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`flex-1 space-y-2.5 rounded-2xl p-1 transition-colors ${
+                        snapshot.isDraggingOver ? "bg-slate-900/60" : ""
+                      }`}
+                    >
+                      {quad.tasks.map((task, index) => (
+                        <TaskCard key={task.id} task={task} index={index} columnAccent={quad.accent} />
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            ))}
           </div>
         )}
-      </Droppable>
+      </DragDropContext>
     </div>
   );
 }

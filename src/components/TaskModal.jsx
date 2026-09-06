@@ -1,427 +1,288 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { X, Calendar, AlertCircle, Columns, Clock, Play, Square, Smile, ChevronDown, Trophy } from "lucide-react";
+import { useState } from "react";
+import {
+  X,
+  Calendar,
+  Clock,
+  Trash2,
+  Zap,
+  Coffee,
+  Layers,
+} from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import confetti from "canvas-confetti";
-
-const COLUMN_OPTIONS = [
-  { id: "college", label: "College Work" },
-  { id: "myspace", label: "MySpace" },
-  { id: "dsa-java", label: "DSA Java" },
-  { id: "web-dev", label: "Web Development" },
-  { id: "dsa-practice", label: "DSA Practice" },
-  { id: "aiml", label: "AIML" },
-  { id: "done", label: "Finished Tasks" },
-];
-
-function getInitialFormData(taskToEdit) {
-  const base = {
-    title: "",
-    description: "",
-    status: "college",
-    priority: "medium",
-    dueDate: "",
-    duration: "",
-    startTime: "",
-    endTime: "",
-    mood: 3,
-    isQuickTask: false,
-  };
-
-  if (taskToEdit && taskToEdit.id) {
-    return {
-      ...base,
-      ...taskToEdit,
-    };
-  }
-  
-  return {
-    ...base,
-    ...taskToEdit,
-  };
-}
-
-// Helper to calculate duration between two 24h times
-function calculateDuration(start, end) {
-  if (!start || !end) return "";
-  const [startH, startM] = start.split(':').map(Number);
-  const [endH, endM] = end.split(':').map(Number);
-  
-  let diffMins = (endH * 60 + endM) - (startH * 60 + startM);
-  if (diffMins < 0) diffMins += 24 * 60; // Handle overnight tasks
-  
-  const h = Math.floor(diffMins / 60);
-  const m = diffMins % 60;
-  
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
 
 export default function TaskModal({ isOpen, onClose, taskToEdit = null }) {
   if (!isOpen) return null;
   return <TaskModalInner onClose={onClose} taskToEdit={taskToEdit} />;
 }
 
-function TimePicker({ value, onChange, label, icon: Icon }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
+function TaskModalInner({ onClose, taskToEdit }) {
+  const { addTask, updateTask, columns } = useTaskStore();
+  const defaultCol = columns[0]?.id || "backlog";
 
-  // Parse current value
-  const h24 = value ? parseInt(value.split(':')[0]) : 12;
-  const mins = value ? parseInt(value.split(':')[1]) : 0;
-  const ampm = h24 >= 12 ? 'PM' : 'AM';
-  const h12 = h24 % 12 || 12;
+  const [formData, setFormData] = useState(() => {
+    const base = {
+      title: "",
+      description: "",
+      status: defaultCol,
+      priority: "medium",
+      energyLevel: "standard", // 'deep' | 'standard' | 'light'
+      dueDate: "",
+      duration: "45m",
+      mood: 4,
+      subtasks: [],
+    };
+    return taskToEdit ? { ...base, ...taskToEdit } : base;
+  });
 
-  const handleSelect = (h, m, p) => {
-    let finalH = h % 12;
-    if (p === 'PM') finalH += 12;
-    const finalValue = `${finalH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-    onChange(finalValue);
+  const [newSubtask, setNewSubtask] = useState("");
+  const isEditing = Boolean(taskToEdit && taskToEdit.id);
+
+  const handleAddSubtask = (e) => {
+    e.preventDefault();
+    if (!newSubtask.trim()) return;
+    setFormData((prev) => ({
+      ...prev,
+      subtasks: [
+        ...(prev.subtasks || []),
+        { id: crypto.randomUUID(), text: newSubtask.trim(), completed: false },
+      ],
+    }));
+    setNewSubtask("");
   };
 
-  const displayValue = value ? `${h12}:${mins.toString().padStart(2, '0')} ${ampm}` : 'Set Time';
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
-        <Icon className="w-3 h-3" /> {label}
-      </label>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between text-[13px] text-slate-200 bg-slate-950/40 hover:bg-slate-800 p-2 rounded-lg border border-slate-800/50 transition-all"
-      >
-        <span>{displayValue}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 z-100 bg-slate-900 border border-slate-700 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] p-4 w-64 animate-in zoom-in-95 duration-150">
-          <div className="flex gap-4 h-48">
-            {/* Hours */}
-            <div className="flex-1 overflow-y-auto no-scrollbar py-1">
-              <div className="text-[9px] font-black text-slate-600 uppercase mb-2 text-center sticky top-0 bg-slate-900 py-1">Hour</div>
-              {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => handleSelect(h, mins, ampm)}
-                  className={`w-full py-2 text-xs font-bold rounded-lg mb-1 transition-all ${h === h12 ? 'bg-brand-primary text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                >
-                  {h}
-                </button>
-              ))}
-            </div>
-            {/* Minutes */}
-            <div className="flex-1 overflow-y-auto no-scrollbar py-1">
-              <div className="text-[9px] font-black text-slate-600 uppercase mb-2 text-center sticky top-0 bg-slate-900 py-1">Min</div>
-              {[0, 15, 30, 45].map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => handleSelect(h12, m, ampm)}
-                  className={`w-full py-2 text-xs font-bold rounded-lg mb-1 transition-all ${m === mins ? 'bg-brand-primary text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                >
-                  {m.toString().padStart(2, '0')}
-                </button>
-              ))}
-            </div>
-            {/* AM/PM */}
-            <div className="flex-1 py-1">
-              <div className="text-[9px] font-black text-slate-600 uppercase mb-2 text-center sticky top-0 bg-slate-900 py-1">Period</div>
-              {['AM', 'PM'].map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => handleSelect(h12, mins, p)}
-                  className={`w-full py-2 text-xs font-bold rounded-lg mb-1 transition-all ${p === ampm ? 'bg-brand-primary text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskModalInner({ onClose, taskToEdit }) {
-  const { addTask, updateTask, notes, updateNote } = useTaskStore();
-  const [formData, setFormData] = useState(() => {
-    const data = getInitialFormData(taskToEdit);
-    // If marking as done and no times set, pre-fill with current time (skip for quick tasks)
-    if (data.status === 'done' && !data.startTime && !data.isQuickTask) {
-      const now = new Date();
-      data.endTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      const start = new Date(now.getTime() - 60 * 60 * 1000); // Default 1h back
-      data.startTime = `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`;
-    }
-    return data;
-  });
-  const isEditing = taskToEdit && taskToEdit.id;
-
-  // Linked Note state
-  const [linkedNoteId, setLinkedNoteId] = useState("");
-
-  useEffect(() => {
-    if (isEditing) {
-      const foundNote = notes.find(n => n.linkedTaskId === taskToEdit?.id);
-      setLinkedNoteId(foundNote ? foundNote.id : "");
-    } else {
-      setLinkedNoteId("");
-    }
-  }, [taskToEdit, notes, isEditing]);
-
-  // Auto-calculate duration when start or end time changes
-  useEffect(() => {
-    if (formData.startTime && formData.endTime) {
-      const newDuration = calculateDuration(formData.startTime, formData.endTime);
-      if (newDuration !== formData.duration) {
-        setFormData(prev => ({ ...prev, duration: newDuration }));
-      }
-    }
-  }, [formData.startTime, formData.endTime, formData.duration]);
+  const handleRemoveSubtask = (id) => {
+    setFormData((prev) => ({
+      ...prev,
+      subtasks: prev.subtasks.filter((st) => st.id !== id),
+    }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Determine or generate task ID so we can associate the note
+    if (!formData.title.trim()) return;
+
     const taskId = taskToEdit?.id || crypto.randomUUID();
-    
-    const taskData = {
+    const taskPayload = {
       id: taskId,
       ...formData,
-      category: formData.status === 'done' 
-        ? (formData.category && formData.category !== 'done' ? formData.category : 'college')
-        : formData.status,
     };
 
-    if (taskData.status === 'done' && !taskData.completedAt) {
-      taskData.completedAt = new Date().toISOString();
+    if (taskPayload.status === "done" && !taskPayload.completedAt) {
+      taskPayload.completedAt = new Date().toISOString();
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: 80,
+        spread: 60,
         origin: { y: 0.6 },
-        colors: ["#8b5cf6", "#ec4899", "#22c55e"],
+        colors: ["#6366f1", "#8b5cf6", "#06b6d4"],
       });
     }
 
     if (isEditing) {
-      updateTask(taskToEdit.id, taskData);
+      updateTask(taskToEdit.id, taskPayload);
     } else {
-      addTask(taskData);
-    }
-
-    // Handle Linked Note logic
-    notes.forEach(n => {
-      // Clear linkedTaskId on any note that was linked to this task but is no longer selected
-      if (n.linkedTaskId === taskId && n.id !== linkedNoteId) {
-        updateNote(n.id, { linkedTaskId: null });
-      }
-    });
-
-    if (linkedNoteId) {
-      updateNote(linkedNoteId, { linkedTaskId: taskId });
+      addTask(taskPayload);
     }
 
     onClose();
   };
 
   return (
-    <div className="fixed top-0 left-0 w-screen h-screen z-9999 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-4xl w-full max-w-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden my-auto animate-slide-in">
-        <div className="flex justify-between items-center p-8 border-b border-slate-800/50">
-          <h2 className="text-2xl font-black text-white tracking-tighter uppercase">
-            {isEditing ? (formData.status === 'done' ? "Complete Activity" : "Edit Activity") : "New Activity"}
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto">
+      <div className="relative w-full max-w-lg glass-panel border border-white/[0.12] rounded-3xl p-6 sm:p-8 shadow-2xl my-auto">
+        <div className="flex justify-between items-center pb-5 border-b border-white/[0.06] mb-6">
+          <h2 className="text-xl font-black text-white tracking-tight">
+            {isEditing ? "Edit Task" : "Create New Task"}
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-white transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
           <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-              Title
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Task Title
             </label>
             <input
               type="text"
               required
               value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold"
-              placeholder="What's the goal?"
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="What are you focusing on?"
+              autoFocus
+              className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-primary"
             />
           </div>
 
-          {/* Quick Task Option */}
-          <div className="flex items-center gap-3 p-4 bg-slate-950/20 rounded-2xl border border-slate-800/50">
-            <input
-              type="checkbox"
-              id="isQuickTask"
-              checked={formData.isQuickTask || false}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setFormData(prev => ({
-                  ...prev,
-                  isQuickTask: checked,
-                  startTime: checked ? "" : prev.startTime,
-                  endTime: checked ? "" : prev.endTime,
-                  duration: checked ? "0m" : (prev.startTime && prev.endTime ? calculateDuration(prev.startTime, prev.endTime) : prev.duration),
-                  actualDurationMinutes: checked ? 0 : prev.actualDurationMinutes,
-                  actualDuration: checked ? "0m" : prev.actualDuration
-                }));
-              }}
-              className="w-4 h-4 rounded accent-brand-primary cursor-pointer"
-            />
-            <label htmlFor="isQuickTask" className="text-xs font-bold text-slate-200 cursor-pointer select-none">
-              Quick Task <span className="text-[10px] text-slate-500 font-medium font-mono">(No Time Tracking, 0m duration)</span>
+          {/* Cognitive Energy Load */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Cognitive Energy Load
             </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "deep", label: "Deep Focus", icon: Zap, color: "text-brand-primary border-brand-primary/40" },
+                { id: "standard", label: "Standard", icon: Layers, color: "text-brand-cyan border-brand-cyan/40" },
+                { id: "light", label: "Quick Win", icon: Coffee, color: "text-amber-400 border-amber-400/40" },
+              ].map((lvl) => {
+                const Icon = lvl.icon;
+                const isSel = formData.energyLevel === lvl.id;
+                return (
+                  <button
+                    key={lvl.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, energyLevel: lvl.id })}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isSel
+                        ? `bg-slate-900 ${lvl.color} text-white shadow-md`
+                        : "bg-slate-950/60 border-white/[0.06] text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {lvl.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          {/* Workspace Column & Priority */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-                <Calendar className="w-3.5 h-3.5 inline mr-1 mb-0.5" /> Due Date
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Column Status
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-primary"
+              >
+                {columns.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                    {c.title}
+                  </option>
+                ))}
+                <option value="done" className="bg-slate-900 text-white">Done / Completed</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Priority
+              </label>
+              <select
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-primary"
+              >
+                <option value="high" className="bg-slate-900 text-white">High Priority</option>
+                <option value="medium" className="bg-slate-900 text-white">Medium Priority</option>
+                <option value="low" className="bg-slate-900 text-white">Low Priority</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Due Date & Duration */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-brand-primary" /> Due Date
               </label>
               <input
                 type="date"
                 value={formData.dueDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, dueDate: e.target.value })
-                }
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold text-sm"
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-primary"
               />
             </div>
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-                <AlertCircle className="w-3.5 h-3.5 inline mr-1 mb-0.5" /> Priority
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) =>
-                  setFormData({ ...formData, priority: e.target.value })
-                }
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold text-sm appearance-none"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-          </div>
 
-          {/* Time Tracking Section */}
-          {!formData.isQuickTask && (
-            <div className="grid grid-cols-3 gap-4 p-4 bg-slate-950/40 rounded-3xl border border-slate-800">
-            <TimePicker 
-              label="Start" 
-              icon={Play} 
-              value={formData.startTime} 
-              onChange={(v) => setFormData({ ...formData, startTime: v })} 
-            />
-            <TimePicker 
-              label="End" 
-              icon={Square} 
-              value={formData.endTime} 
-              onChange={(v) => setFormData({ ...formData, endTime: v })} 
-            />
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
-                <Clock className="w-3 h-3" /> Duration
-              </label>
-              <div className="bg-slate-800/30 border border-slate-800/50 rounded-lg p-2 h-[38px] flex items-center">
-                <span className={`text-sm font-black ${formData.duration ? 'text-brand-success' : 'text-slate-600'}`}>
-                  {formData.duration || "—"}
-                </span>
-              </div>
-            </div>
-          </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-                <Columns className="w-3.5 h-3.5 inline mr-1 mb-0.5" /> Section
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold text-sm appearance-none"
-              >
-                {COLUMN_OPTIONS.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {col.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-                <Smile className="w-3.5 h-3.5 inline mr-1 mb-0.5" /> Mood ({formData.mood}/5)
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-brand-primary" /> Est. Duration
               </label>
               <input
-                type="range"
-                min="1"
-                max="5"
-                step="1"
-                value={formData.mood}
-                onChange={(e) => setFormData({ ...formData, mood: parseInt(e.target.value) })}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-brand-primary mt-4"
+                type="text"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                placeholder="e.g. 45m, 1h 30m"
+                className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-primary"
               />
             </div>
           </div>
 
+          {/* Micro-steps Checklist */}
           <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
-              Link Mind Dump Pad
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Subtasks Checklist
             </label>
-            <select
-              value={linkedNoteId}
-              onChange={(e) => setLinkedNoteId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand-primary transition-all font-bold text-sm appearance-none"
-            >
-              <option value="">-- No Pad Linked --</option>
-              {notes.map((note) => (
-                <option key={note.id} value={note.id}>
-                  {note.title}
-                </option>
+            <div className="space-y-1.5 mb-2 max-h-24 overflow-y-auto">
+              {(formData.subtasks || []).map((st) => (
+                <div
+                  key={st.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-white/[0.04] text-xs text-slate-300"
+                >
+                  <span className="truncate">{st.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSubtask(st.id)}
+                    className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               ))}
-            </select>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newSubtask}
+                onChange={(e) => setNewSubtask(e.target.value)}
+                placeholder="+ Add micro-step..."
+                className="flex-1 bg-slate-950/80 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-primary"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtask}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white cursor-pointer"
+              >
+                Add
+              </button>
+            </div>
           </div>
 
-          <div className="pt-6 flex justify-end gap-4 border-t border-slate-800">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 bg-slate-800 hover:text-white transition-all"
+          {/* Description */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Notes & Context
+            </label>
+            <textarea
+              rows={2}
+              value={formData.description || ""}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Additional details, URLs, or notes..."
+              className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl p-3 text-xs text-white focus:outline-none focus:border-brand-primary resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/[0.06]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
-              className="px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-primary text-white hover:scale-105 transition-all shadow-xl shadow-brand-primary/20"
+            <button
+              type="submit"
+              className="btn-primary px-6 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
             >
-              {isEditing ? (formData.status === 'done' ? "Complete" : "Save Changes") : "Create Activity"}
+              {isEditing ? "Save Changes" : "Create Task"}
             </button>
           </div>
         </form>

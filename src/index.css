@@ -1,96 +1,156 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", sans-serif;
-  --font-heading: "Outfit", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  /* Pure Dark Black Theme with High Contrast */
-  --color-slate-950: #000000;
-  --color-slate-900: #000000;
-  --color-slate-800: #262626; /* Brighter for borders */
-  --color-slate-700: #404040;
-  --color-slate-600: #525252;
-  --color-slate-500: #737373;
-  --color-slate-400: #a3a3a3;
-  --color-slate-300: #d4d4d4;
-  --color-slate-200: #e5e5e5;
-  --color-slate-100: #f5f5f5;
-  --color-slate-50: #fafafa;
+  /* Luxury Dark Obsidian & Slate Neutral Tones */
+  --color-slate-950: #070709;
+  --color-slate-900: #0f1015;
+  --color-slate-800: #1b1c23;
+  --color-slate-700: #2a2c37;
+  --color-slate-600: #424656;
+  --color-slate-500: #686d82;
+  --color-slate-400: #9da3ba;
+  --color-slate-300: #cbd1e1;
+  --color-slate-200: #e2e6f0;
+  --color-slate-100: #f1f3f9;
+  --color-slate-50: #f8fafc;
 
-  --color-brand-primary: #0000ff; /* Pure Blue */
-  --color-brand-secondary: #ff0000; /* Pure Red */
-  --color-brand-success: #25d366; /* WhatsApp Green */
-  --color-brand-warning: #ffd700; /* Pure Gold/Yellow */
-  --color-brand-white: #ffffff; /* Pure White */
-  --color-brand-danger: #ff0000; /* Pure Red */
+  /* Refined Commercial Accent Palette (No Harsh Primary Red/Blue/Green) */
+  --color-brand-primary: #6366f1; /* Electric Indigo */
+  --color-brand-secondary: #8b5cf6; /* Violet Glow */
+  --color-brand-cyan: #06b6d4; /* Luminous Cyan */
+  --color-brand-success: #10b981; /* Muted Emerald */
+  --color-brand-warning: #f59e0b; /* Amber Gold */
+  --color-brand-danger: #f43f5e; /* Rose Crimson */
+  --color-brand-muted: #71717a; /* Neutral Zinc */
 
-  --color-background: #000000;
-  --color-surface: #121212;
+  --color-background: #070709;
+  --color-surface: #0f1015;
+  --color-surface-hover: #161720;
 }
 
 @layer base {
-  body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-brand-primary selection:text-white transition-colors duration-300;
+  * {
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    @apply font-heading tracking-tight;
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-brand-primary/30 selection:text-white;
+    background-color: #070709;
+    color: #f1f3f9;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight text-white;
   }
 }
 
 @layer utilities {
+  /* Luxury Dark Glass Panels */
   .glass-panel {
-    @apply bg-slate-900 border border-slate-800 shadow-none;
+    background: rgba(15, 16, 21, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
   }
 
   .glass-card {
-    @apply bg-slate-800 border border-slate-700 rounded-xl transition-all duration-300 hover:-translate-y-1;
+    background: rgba(23, 24, 32, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .text-solid-primary {
-    @apply text-brand-primary;
+  .glass-card:hover {
+    background: rgba(30, 32, 43, 0.75);
+    border-color: rgba(255, 255, 255, 0.16);
+    transform: translateY(-1px);
   }
 
+  /* ReactBits Floating Glass Dock */
+  .glass-dock {
+    background: rgba(11, 12, 16, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Sleek Commercial Buttons */
   .btn-primary {
-    @apply relative overflow-hidden bg-brand-primary text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95;
+    @apply relative inline-flex items-center justify-center font-medium transition-all duration-200 cursor-pointer select-none text-white;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.15);
   }
 
-  .btn-primary > * {
-    @apply relative z-10;
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #6d70ff 0%, #5b52f0 100%);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
   }
 
   .btn-secondary {
-    @apply bg-slate-800 text-slate-200 border border-slate-700 font-medium py-2.5 px-5 rounded-lg transition-all duration-300 hover:bg-slate-700 hover:text-white hover:border-slate-600 active:scale-95;
+    @apply relative inline-flex items-center justify-center font-medium transition-all duration-200 cursor-pointer select-none text-slate-300;
+    background: rgba(27, 28, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.09);
   }
 
-  .btn-icon {
-    @apply flex items-center justify-center w-10 h-10 rounded-full bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors;
+  .btn-secondary:hover {
+    @apply text-white;
+    background: rgba(42, 44, 55, 0.8);
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
   }
 
-  .input-field {
-    @apply w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all;
+  .btn-secondary:active {
+    transform: translateY(0) scale(0.98);
   }
 
-  /* Scrollbar */
+  /* Hairline Borders */
+  .hairline-border {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .hairline-border-b {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .hairline-border-t {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* ReactBits Spotlight Effect Helper */
+  .spotlight-wrapper {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Minimalist Refined Scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-700 rounded-full;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-600;
+    background: rgba(255, 255, 255, 0.22);
   }
-  /* No scrollbar */
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

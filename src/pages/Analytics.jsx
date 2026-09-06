@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { format, parseISO, isSameDay } from "date-fns";
+import { useRef, useMemo } from "react";
+import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import {
   Chart as ChartJS,
@@ -14,9 +14,18 @@ import {
   Legend,
   Filler,
 } from "chart.js";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
-import { CheckCircle, Flame, Clock, TrendingUp, Smile, AlertCircle, Timer } from "lucide-react";
+import { Bar, Doughnut } from "react-chartjs-2";
+import {
+  CheckCircle,
+  Clock,
+  Zap,
+  Smile,
+  AlertCircle,
+  Flame,
+  AlertTriangle,
+} from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
+import SpotlightCard from "../components/ui/SpotlightCard";
 
 ChartJS.register(
   CategoryScale,
@@ -32,11 +41,12 @@ ChartJS.register(
 );
 
 const TABS = [
-  { id: "tasks", label: "Tasks", icon: CheckCircle, color: "#25d366" },
-  { id: "streaks", label: "Streaks", icon: Flame, color: "#ff8c00" },
-  { id: "duration", label: "Activity Time", icon: Clock, color: "#0000ff" },
-  { id: "mood", label: "Mood Analysis", icon: Smile, color: "#ff0000" },
-  { id: "priority", label: "Priority Analysis", icon: AlertCircle, color: "#ff00ff" },
+  { id: "tasks", label: "Task Volume", icon: CheckCircle, color: "#10b981" },
+  { id: "energy", label: "Cognitive Load", icon: Zap, color: "#6366f1" },
+  { id: "streaks", label: "Streaks & Shields", icon: Flame, color: "#f59e0b" },
+  { id: "duration", label: "Focus Duration", icon: Clock, color: "#06b6d4" },
+  { id: "mood", label: "Mindset & Mood", icon: Smile, color: "#8b5cf6" },
+  { id: "priority", label: "Priority Matrix", icon: AlertCircle, color: "#f43f5e" },
 ];
 
 const baseChartOptions = {
@@ -45,12 +55,12 @@ const baseChartOptions = {
   plugins: { legend: { display: false } },
   scales: {
     y: {
-      grid: { color: "rgba(51, 65, 85, 0.5)" },
-      ticks: { color: "#94a3b8" },
+      grid: { color: "rgba(255, 255, 255, 0.05)" },
+      ticks: { color: "#94a3b8", font: { size: 10 } },
     },
     x: {
       grid: { display: false },
-      ticks: { color: "#94a3b8" },
+      ticks: { color: "#94a3b8", font: { size: 10 } },
     },
   },
 };
@@ -58,73 +68,72 @@ const baseChartOptions = {
 const doughnutOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  cutout: "70%",
+  cutout: "72%",
   plugins: {
     legend: {
       position: "bottom",
-      labels: { color: "#94a3b8", padding: 16, usePointStyle: true, pointStyleWidth: 10 },
+      labels: {
+        color: "#94a3b8",
+        padding: 14,
+        usePointStyle: true,
+        pointStyleWidth: 8,
+        font: { size: 11, weight: 600 },
+      },
     },
   },
 };
 
 export default function Analytics() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") || "tasks";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const activeTab = searchParams.get("tab") || "tasks";
   const sectionRef = useRef(null);
-  const tasks = useTaskStore(state => state.tasks);
-
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && TABS.some((t) => t.id === tab)) {
-      setActiveTab(tab);
-      setTimeout(() => {
-        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    }
-  }, [searchParams]);
+  const tasks = useTaskStore((state) => state.tasks);
 
   const handleTabChange = (id) => {
-    setActiveTab(id);
     setSearchParams({ tab: id });
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-1">Analytics</h1>
-          <p className="text-slate-400">
-            Insights based on your tracked activities.
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Productivity Analytics
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Deep performance insights, cognitive load metrics, and flow history.
           </p>
         </div>
-        <div className="text-xs text-slate-500 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
-          Last updated: Today
+        <div className="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-full border border-white/[0.08]">
+          Real-time Local Analytics
         </div>
       </div>
 
-      <div className="flex gap-2 bg-slate-900/50 p-1.5 rounded-xl overflow-x-auto">
+      {/* Tab Selectors */}
+      <div className="flex gap-2 p-1 bg-slate-900 border border-white/[0.08] rounded-2xl overflow-x-auto no-scrollbar">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
+          const Icon = tab.icon;
           return (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? "bg-slate-800 text-white shadow-lg"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-slate-800 text-white shadow-md"
+                  : "text-slate-400 hover:text-white hover:bg-slate-850"
               }`}
             >
-              <tab.icon className="w-4 h-4" style={isActive ? { color: tab.color } : {}} />
-              {tab.label}
+              <Icon className="w-3.5 h-3.5" style={isActive ? { color: tab.color } : {}} />
+              <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div ref={sectionRef} className="pb-10">
+      <div ref={sectionRef}>
         {activeTab === "tasks" && <TasksAnalytics tasks={tasks} />}
+        {activeTab === "energy" && <EnergyAnalytics tasks={tasks} />}
         {activeTab === "streaks" && <StreaksAnalytics tasks={tasks} />}
         {activeTab === "duration" && <DurationAnalytics tasks={tasks} />}
         {activeTab === "mood" && <MoodAnalytics tasks={tasks} />}
@@ -134,102 +143,75 @@ export default function Analytics() {
   );
 }
 
+function MiniStat({ label, value, subtext }) {
+  return (
+    <SpotlightCard className="p-4">
+      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">
+        {label}
+      </div>
+      <div className="text-xl sm:text-2xl font-black text-white font-heading">{value}</div>
+      {subtext && <div className="text-[10px] text-slate-500 mt-0.5">{subtext}</div>}
+    </SpotlightCard>
+  );
+}
+
+/* 1. Tasks Analytics */
 function TasksAnalytics({ tasks }) {
-  const categories = {
-    'college': 'College Work',
-    'myspace': 'MySpace',
-    'dsa-java': 'DSA Java',
-    'web-dev': 'Web Dev',
-    'dsa-practice': 'DSA Practice',
-    'aiml': 'AIML',
-    'done': 'Finished'
-  };
+  const columns = useTaskStore((state) => state.columns);
+  const completed = tasks.filter((t) => t.status === "done").length;
 
-  const normalizeCatId = (catId) => {
-    if (!catId) return 'college';
-    const c = catId.toLowerCase().trim();
-    if (c === "todo" || c === "college" || c === "college work" || c === "college-work") return 'college';
-    if (c === "myspace" || c === "my space" || c === "my-space") return 'myspace';
-    if (c === "java" || c === "dsa-java" || c === "dsa java") return 'dsa-java';
-    if (c === "webdev" || c === "web-dev" || c === "web dev") return 'web-dev';
-    if (c === "practice" || c === "dsa-practice" || c === "dsa practice") return 'dsa-practice';
-    if (c === "aiml" || c === "ai-ml" || c === "ai & ml" || c === "ai/ml" || c === "ai") return 'aiml';
-    return c;
-  };
-
-  const catCounts = useMemo(() => {
+  const columnDistribution = useMemo(() => {
     const counts = {};
-    const completedTasks = tasks.filter(t => t.status === 'done');
-    completedTasks.forEach(t => {
-      const rawCat = t.category || t.status || 'college';
-      const normCat = normalizeCatId(rawCat);
-      const label = categories[normCat] || (normCat.charAt(0).toUpperCase() + normCat.slice(1));
-      counts[label] = (counts[label] || 0) + 1;
+    const labels = [];
+    const colors = [];
+
+    columns.forEach((col) => {
+      counts[col.title] = tasks.filter((t) => t.status === col.id).length;
+      labels.push(col.title);
+      colors.push(col.accent || "#6366f1");
     });
-    return counts;
-  }, [tasks]);
 
-  const CATEGORY_COLORS = {
-    'college': '#0000ff', // Blue
-    'myspace': '#25d366', // WhatsApp Green
-    'dsa-java': '#ffffff', // White
-    'web-dev': '#ff0000', // Red
-    'dsa-practice': '#ffd700', // Yellow
-    'aiml': '#a855f7',    // Purple
-    'done': '#25d366'     // Green
-  };
+    counts["Done"] = completed;
+    labels.push("Done");
+    colors.push("#10b981");
 
-  const chartLabels = Object.keys(catCounts);
-  const chartColors = chartLabels.map(label => {
-    const id = Object.keys(categories).find(key => categories[key] === label);
-    return CATEGORY_COLORS[id] || '#64748b';
-  });
-
-  const categoryData = {
-    labels: chartLabels,
-    datasets: [
-      {
-        data: Object.values(catCounts),
-        backgroundColor: chartColors,
-        borderWidth: 0,
-      },
-    ],
-  };
-
-  const completed = tasks.filter(t => t.status === 'done').length;
+    return {
+      labels,
+      datasets: [
+        {
+          data: labels.map((l) => counts[l] || 0),
+          backgroundColor: colors,
+          borderRadius: 8,
+          borderWidth: 0,
+        },
+      ],
+    };
+  }, [tasks, columns, completed]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Total Activities" value={tasks.length} />
+        <MiniStat label="Total Tasks" value={tasks.length} />
         <MiniStat label="Completed" value={completed} />
-        <MiniStat label="Completion Rate" value={tasks.length ? `${Math.round((completed/tasks.length)*100)}%` : '0%'} />
-        <MiniStat label="In Progress" value={tasks.length - completed} />
+        <MiniStat
+          label="Completion Rate"
+          value={tasks.length ? `${Math.round((completed / tasks.length) * 100)}%` : "0%"}
+        />
+        <MiniStat label="Active Work" value={tasks.length - completed} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Activity Distribution</h2>
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 h-96 flex flex-col">
+          <h3 className="text-sm font-bold text-white mb-4">Task Volume by Workspace Column</h3>
           <div className="flex-1 min-h-0">
-            <Bar
-              data={{
-                labels: Object.keys(catCounts),
-                datasets: [{
-                  label: 'Count',
-                  data: Object.values(catCounts),
-                  backgroundColor: chartColors,
-                  borderRadius: 6
-                }]
-              }}
-              options={baseChartOptions}
-            />
+            <Bar data={columnDistribution} options={baseChartOptions} />
           </div>
         </div>
 
-        <div className="glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">By Section</h2>
+        <div className="glass-panel rounded-3xl p-6 h-96 flex flex-col">
+          <h3 className="text-sm font-bold text-white mb-4">Ratio Breakdown</h3>
           <div className="flex-1 min-h-0">
-            <Doughnut data={categoryData} options={doughnutOptions} />
+            <Doughnut data={columnDistribution} options={doughnutOptions} />
           </div>
         </div>
       </div>
@@ -237,82 +219,128 @@ function TasksAnalytics({ tasks }) {
   );
 }
 
-function StreaksAnalytics({ tasks }) {
-  const completedTasks = tasks.filter(t => t.status === 'done');
-  
-  const streakStats = useMemo(() => {
-    if (completedTasks.length === 0) return { current: 0, longest: 0, activeDays: 0 };
+/* 2. Cognitive Load & Burnout Analytics */
+function EnergyAnalytics({ tasks }) {
+  const user = useTaskStore((state) => state.user);
+  const pendingTasks = tasks.filter((t) => t.status !== "done");
 
-    // Get all unique active dates (YYYY-MM-DD)
-    const activeDates = [...new Set(completedTasks.map(t => t.dueDate || t.createdAt?.split('T')[0]))]
-      .sort((a, b) => new Date(b) - new Date(a)); // Sort descending (newest first)
+  const energyBreakdown = useMemo(() => {
+    let deep = 0,
+      standard = 0,
+      light = 0;
+    pendingTasks.forEach((t) => {
+      const lvl = t.energyLevel || "standard";
+      if (lvl === "deep") deep++;
+      else if (lvl === "light") light++;
+      else standard++;
+    });
 
-    const activeDays = activeDates.length;
-    let current = 0;
-    let longest = 0;
+    return {
+      deep,
+      standard,
+      light,
+      chartData: {
+        labels: ["Deep Focus", "Standard", "Quick Win"],
+        datasets: [
+          {
+            data: [deep, standard, light],
+            backgroundColor: ["#6366f1", "#06b6d4", "#f59e0b"],
+            borderWidth: 0,
+          },
+        ],
+      },
+    };
+  }, [pendingTasks]);
 
-    // Current Streak Calculation
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    
-    if (activeDates[0] === today || activeDates[0] === yesterday) {
-      current = 1;
-      for (let i = 0; i < activeDates.length - 1; i++) {
-        const currentDay = new Date(activeDates[i]);
-        const nextDay = new Date(activeDates[i+1]);
-        const diffDays = (currentDay - nextDay) / (1000 * 60 * 60 * 24);
-        
-        if (diffDays === 1) {
-          current++;
-        } else {
-          break;
-        }
-      }
-    }
+  const targetHours = ((user.dailyFocusTargetMinutes || 240) / 60).toFixed(1);
 
-    // Longest Streak Calculation
-    let currentTemp = 1;
-    for (let i = 0; i < activeDates.length - 1; i++) {
-      const currentDay = new Date(activeDates[i]);
-      const nextDay = new Date(activeDates[i+1]);
-      const diffDays = (currentDay - nextDay) / (1000 * 60 * 60 * 24);
-      
-      if (diffDays === 1) {
-        currentTemp++;
-      } else {
-        longest = Math.max(longest, currentTemp);
-        currentTemp = 1;
-      }
-    }
-    longest = Math.max(longest, currentTemp);
-
-    return { current, longest, activeDays };
-  }, [completedTasks]);
-  
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Current Streak" value={`${streakStats.current} Days`} />
-        <MiniStat label="Longest Streak" value={`${streakStats.longest} Days`} />
-        <MiniStat label="Active Days" value={streakStats.activeDays} />
-        <MiniStat label="Consistency" value={streakStats.activeDays > 5 ? "High" : "Building"} />
+        <MiniStat label="Deep Work Tasks" value={energyBreakdown.deep} subtext="High brainpower" />
+        <MiniStat label="Standard Effort" value={energyBreakdown.standard} subtext="Balanced cognition" />
+        <MiniStat label="Quick Wins" value={energyBreakdown.light} subtext="Low friction tasks" />
+        <MiniStat label="Focus Target" value={`${targetHours}h`} subtext="Daily capacity ceiling" />
       </div>
 
-      <div className="glass-panel rounded-xl p-8 flex flex-col items-center justify-center min-h-[300px] border border-slate-800">
-        {streakStats.current > 0 ? (
-          <>
-            <Flame className="w-16 h-16 text-brand-warning mb-4" />
-            <h3 className="text-2xl font-black text-white">You're on Fire!</h3>
-            <p className="text-slate-400 text-center max-w-md mt-2">
-              You've maintained a streak of <span className="text-white font-bold">{streakStats.current} days</span>. 
-              Keep going to beat your record of {streakStats.longest} days!
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="glass-panel rounded-3xl p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-brand-primary" /> Cognitive Distribution
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Healthy productivity balances high-friction deep work with quick restorative wins.
             </p>
-          </>
-        ) : (
-          <div className="text-center">
-            <Flame className="w-12 h-12 text-slate-700 mb-4 mx-auto" />
-            <h3 className="text-xl font-bold text-slate-500">Start Your Streak</h3>
-            <p className="text-slate-600 text-sm mt-2">Finish a task today to start your consistency streak!</p>
+          </div>
+          <div className="h-64">
+            <Doughnut data={energyBreakdown.chartData} options={doughnutOptions} />
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" /> Burnout Prevention Analysis
+            </h3>
+            <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+              When deep work exceeds 4-5 hours daily, cognitive exhaustion sets in and leads to quiet abandonment. VibeFlow monitors your planned mental load in real-time.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/[0.06] space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-300">Daily Deep Work Health Status</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                Optimal Zone
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Your backlog contains {energyBreakdown.deep} Deep Focus tasks. Pace yourself by scheduling no more than 2-3 deep work blocks per day.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* 3. Streaks & Shields Analytics */
+function StreaksAnalytics() {
+  const { streakCount, streakShields, restDays, streakRecoveryQuest } = useTaskStore();
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MiniStat label="Current Streak" value={`${streakCount} Days`} />
+        <MiniStat label="Available Shields" value={streakShields} subtext="Auto-freezes on missed day" />
+        <MiniStat label="Scheduled Rest Days" value={restDays.length} subtext="Zero penalty downtime" />
+        <MiniStat
+          label="Momentum Status"
+          value={streakCount > 7 ? "Flow Master" : streakCount > 2 ? "Consistent" : "Building"}
+        />
+      </div>
+
+      <div className="glass-panel rounded-3xl p-8 flex flex-col items-center justify-center min-h-[320px] text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-4 shadow-lg shadow-amber-500/10">
+          <Flame className="w-8 h-8 fill-current" />
+        </div>
+        <h3 className="text-2xl font-black text-white">
+          {streakCount > 0 ? `${streakCount} Day Momentum!` : "Start Your Streak Today"}
+        </h3>
+        <p className="text-xs text-slate-400 max-w-md mt-2 leading-relaxed">
+          You have <strong className="text-emerald-400 font-bold">{streakShields} active Streak Shield{streakShields === 1 ? "" : "s"}</strong>.
+          Every 12 completed focus tasks earn an additional shield to protect your progress when unexpected life events occur.
+        </p>
+
+        {streakRecoveryQuest?.active && (
+          <div className="mt-6 p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/30 max-w-md text-left">
+            <h4 className="text-xs font-bold text-brand-primary uppercase tracking-wider">
+              Active Comeback Quest!
+            </h4>
+            <p className="text-xs text-slate-300 mt-1">
+              Complete {streakRecoveryQuest.targetTasks} priority tasks today to restore your broken streak without fees!
+            </p>
           </div>
         )}
       </div>
@@ -320,35 +348,13 @@ function StreaksAnalytics({ tasks }) {
   );
 }
 
-function DurationAnalytics({ tasks }) {
-  const rawFocusHistory = useTaskStore(state => state.focusHistory || []);
+/* 4. Duration Analytics */
+function DurationAnalytics() {
+  const focusHistory = useTaskStore((state) => state.focusHistory || []);
 
-  // Filter out focusHistory entries for tasks that have been deleted
-  const activeTaskIds = useMemo(() => new Set(tasks.map(t => t.id)), [tasks]);
-  const focusHistory = useMemo(
-    () => rawFocusHistory.filter(h => activeTaskIds.has(h.taskId)),
-    [rawFocusHistory, activeTaskIds]
-  );
-
-  const totalDuration = useMemo(() => {
+  const totalMinutes = useMemo(() => {
     return focusHistory.reduce((acc, s) => acc + (s.minutes || 0), 0);
   }, [focusHistory]);
-
-  const totalHours = Math.floor(totalDuration / 60);
-  const totalMins = totalDuration % 60;
-
-  const completedTasksCount = useMemo(() => {
-    return tasks.filter(t => t.status === 'done').length;
-  }, [tasks]);
-
-  const activeDaysCount = useMemo(() => {
-    return new Set([
-      ...tasks.map(t => t.completedAt?.split('T')[0] || t.dueDate || t.createdAt?.split('T')[0]).filter(Boolean),
-      ...focusHistory.map(h => h.date).filter(Boolean)
-    ]).size;
-  }, [tasks, focusHistory]);
-
-  const avgDailyMins = activeDaysCount > 0 ? Math.round(totalDuration / activeDaysCount) : 0;
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -356,574 +362,113 @@ function DurationAnalytics({ tasks }) {
     return d;
   }).reverse();
 
-  const getActualMinsForDay = (day) => {
-    const dayStr = day.toLocaleDateString('en-CA');
-    return focusHistory
-      .filter(s => s.date === dayStr)
-      .reduce((acc, s) => acc + (s.minutes || 0), 0);
-  };
-
-  const dailyActualHours = last7Days.map(date => getActualMinsForDay(date) / 60);
-
-  // Category Distribution
-  const categoryDurationData = useMemo(() => {
-    const cats = { college: 0, myspace: 0, java: 0, "web-dev": 0, practice: 0, aiml: 0 };
-    focusHistory.forEach(s => {
-      const rawCat = (s.category || "").toLowerCase();
-      let key = "college";
-      if (rawCat.includes("college")) key = "college";
-      else if (rawCat.includes("myspace") || rawCat.includes("my space")) key = "myspace";
-      else if (rawCat.includes("java")) key = "java";
-      else if (rawCat.includes("web")) key = "web-dev";
-      else if (rawCat.includes("practice")) key = "practice";
-      else if (rawCat.includes("aiml") || rawCat.includes("ai")) key = "aiml";
-
-      cats[key] += s.minutes || 0;
-    });
-
-    return {
-      labels: ['College Work', 'MySpace', 'DSA Java', 'Web Dev', 'DSA Practice', 'AIML'],
-      datasets: [
-        {
-          data: [cats.college, cats.myspace, cats.java, cats["web-dev"], cats.practice, cats.aiml],
-          backgroundColor: ['#0000ff', '#25d366', '#ffffff', '#ff0000', '#ffd700', '#a855f7'],
-          borderWidth: 0,
-        }
-      ]
-    };
-  }, [focusHistory]);
-
-  const customChartOptions = {
-    ...baseChartOptions,
-    plugins: {
-      legend: {
-        display: false
-      }
-    }
-  };
+  const dailyMinutes = last7Days.map((date) => {
+    const dayStr = date.toLocaleDateString("en-CA");
+    return focusHistory.filter((s) => s.date === dayStr).reduce((acc, s) => acc + (s.minutes || 0), 0);
+  });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Total Activity Time" value={`${totalHours}h ${totalMins}m`} />
-        <MiniStat label="Daily Average" value={`${Math.floor(avgDailyMins / 60)}h ${avgDailyMins % 60}m`} />
-        <MiniStat label="Completed Tasks" value={completedTasksCount} />
-        <MiniStat label="Active Days" value={activeDaysCount} />
+        <MiniStat
+          label="Total Focus Logged"
+          value={`${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`}
+        />
+        <MiniStat label="Sessions Logged" value={focusHistory.length} />
+        <MiniStat
+          label="Avg Session Length"
+          value={focusHistory.length ? `${Math.round(totalMinutes / focusHistory.length)}m` : "45m"}
+        />
+        <MiniStat
+          label="Weekly Active Days"
+          value={new Set(focusHistory.map((s) => s.date)).size}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel rounded-xl p-6 h-96">
-          <h2 className="text-lg font-bold mb-4">Daily Activity Duration (Last 7 Days)</h2>
-          {focusHistory.length > 0 || tasks.length > 0 ? (
-            <Bar 
-              data={{
-                labels: last7Days.map(d => format(d, 'EEE')),
-                datasets: [
-                  {
-                    label: "Activity Hours",
-                    data: dailyActualHours,
-                    backgroundColor: "#10b981", // Emerald green
-                    borderRadius: 6
-                  }
-                ]
-              }}
-              options={customChartOptions}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-600">
-              <Clock className="w-10 h-10 mb-2 opacity-20" />
-              <p>Log activities to see your daily trends.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Time by Category</h2>
-          <div className="flex-1 min-h-0 relative">
-            {focusHistory.length > 0 ? (
-              <Doughnut data={categoryDurationData} options={doughnutOptions} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
-                <Clock className="w-10 h-10 mb-2 opacity-20 text-brand-primary" />
-                <p className="text-sm">No activity history logged yet</p>
-              </div>
-            )}
-          </div>
+      <div className="glass-panel rounded-3xl p-6 h-96 flex flex-col">
+        <h3 className="text-sm font-bold text-white mb-4">Focus Time (Minutes / Last 7 Days)</h3>
+        <div className="flex-1 min-h-0">
+          <Bar
+            data={{
+              labels: last7Days.map((d) => format(d, "EEE")),
+              datasets: [
+                {
+                  label: "Minutes",
+                  data: dailyMinutes,
+                  backgroundColor: "#06b6d4",
+                  borderRadius: 8,
+                },
+              ],
+            }}
+            options={baseChartOptions}
+          />
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Vibe & Activity Insight Card */}
-      <div className="glass-panel rounded-xl p-6 border-slate-800 bg-slate-950/20">
-        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-          <Smile className="w-5 h-5 text-amber-500" /> Activity Insights
-        </h3>
-        <p className="text-sm text-slate-300 leading-relaxed">
-          You have logged <span className="text-emerald-400 font-bold">{totalHours}h {totalMins}m</span> of total activity across <span className="text-brand-primary font-bold">{activeDaysCount} active days</span>. Maintaining consistent daily sessions helps build strong productivity habits!
+/* 5. Mood Analytics */
+function MoodAnalytics() {
+  const focusHistory = useTaskStore((state) => state.focusHistory || []);
+  const moodSessions = focusHistory.filter((s) => s.mood);
+
+  const avgMood = moodSessions.length
+    ? (moodSessions.reduce((acc, s) => acc + s.mood, 0) / moodSessions.length).toFixed(1)
+    : "4.5";
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MiniStat label="Average Mood" value={`${avgMood} / 5`} subtext="Post-focus rating" />
+        <MiniStat label="Rated Sessions" value={moodSessions.length} />
+        <MiniStat label="Mindset Status" value={Number(avgMood) >= 4 ? "Energized" : "Neutral"} />
+        <MiniStat label="Fulfillment Score" value={`${Math.round((Number(avgMood) / 5) * 100)}%`} />
+      </div>
+
+      <div className="glass-panel rounded-3xl p-8 text-center min-h-[280px] flex flex-col items-center justify-center">
+        <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-4">
+          <Smile className="w-7 h-7" />
+        </div>
+        <h3 className="text-xl font-black text-white">Mindset & Satisfaction</h3>
+        <p className="text-xs text-slate-400 max-w-md mt-2 leading-relaxed">
+          Tracking post-session mood builds self-awareness. When deep work is paired with proper breaks and manageable tasks, satisfaction stays high.
         </p>
       </div>
     </div>
   );
 }
 
-function FocusAnalytics() {
-  const rawFocusHistory = useTaskStore(state => state.focusHistory || []);
-  const tasks = useTaskStore(state => state.tasks || []);
-  const streakShields = useTaskStore(state => state.streakShields || 0);
+/* 6. Priority Analytics */
+function PriorityAnalytics({ tasks }) {
+  const priorityData = useMemo(() => {
+    let high = 0,
+      medium = 0,
+      low = 0;
+    tasks.forEach((t) => {
+      const p = t.priority || "medium";
+      if (p === "high") high++;
+      else if (p === "low") low++;
+      else medium++;
+    });
 
-  // Filter out focusHistory entries for tasks that have been deleted
-  const activeTaskIds = useMemo(() => new Set(tasks.map(t => t.id)), [tasks]);
-  const focusHistory = useMemo(
-    () => rawFocusHistory.filter(h => activeTaskIds.has(h.taskId)),
-    [rawFocusHistory, activeTaskIds]
-  );
-
-  const totalMins = focusHistory.reduce((acc, s) => acc + s.minutes, 0);
-  const avgMins = focusHistory.length ? Math.round(totalMins / focusHistory.length) : 0;
-
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    return d;
-  }).reverse();
-
-  const getFocusMinsForDay = (day) => {
-    const dayStr = day.toLocaleDateString('en-CA');
-    return focusHistory
-      .filter(s => s.date === dayStr)
-      .reduce((acc, s) => acc + s.minutes, 0);
-  };
-
-  const dailyFocusData = last7Days.map(date => getFocusMinsForDay(date));
-
-  const categoryFocusCounts = useMemo(() => {
-    const counts = {};
-    const categories = {
-      'college': 'College Work',
-      'myspace': 'MySpace',
-      'dsa-java': 'DSA Java',
-      'web-dev': 'Web Dev',
-      'dsa-practice': 'DSA Practice',
-      'aiml': 'AIML',
+    return {
+      labels: ["High Priority", "Medium Priority", "Low Priority"],
+      datasets: [
+        {
+          data: [high, medium, low],
+          backgroundColor: ["#f43f5e", "#f59e0b", "#10b981"],
+          borderWidth: 0,
+        },
+      ],
     };
-    focusHistory.forEach(s => {
-      const rawCat = (s.category || "").toLowerCase();
-      let normCat = 'college';
-      if (rawCat.includes('college')) normCat = 'college';
-      else if (rawCat.includes('myspace') || rawCat.includes('my space')) normCat = 'myspace';
-      else if (rawCat.includes('java')) normCat = 'dsa-java';
-      else if (rawCat.includes('web')) normCat = 'web-dev';
-      else if (rawCat.includes('practice')) normCat = 'dsa-practice';
-      else if (rawCat.includes('aiml') || rawCat.includes('ai')) normCat = 'aiml';
-
-      const label = categories[normCat] || 'AIML';
-      counts[label] = (counts[label] || 0) + s.minutes;
-    });
-    return counts;
-  }, [focusHistory]);
-
-  const CATEGORY_COLORS = {
-    'college': '#0000ff',
-    'myspace': '#25d366',
-    'dsa-java': '#ffffff',
-    'web-dev': '#ff0000',
-    'dsa-practice': '#ffd700',
-    'aiml': '#a855f7',
-  };
-
-  const chartLabels = Object.keys(categoryFocusCounts);
-  const chartColors = chartLabels.map(label => {
-    const categories = {
-      'college': 'College Work',
-      'myspace': 'MySpace',
-      'dsa-java': 'DSA Java',
-      'web-dev': 'Web Dev',
-      'dsa-practice': 'DSA Practice',
-      'aiml': 'AIML',
-    };
-    const id = Object.keys(categories).find(key => categories[key] === label);
-    return CATEGORY_COLORS[id] || '#a855f7';
-  });
-
-  const categoryFocusData = {
-    labels: chartLabels,
-    datasets: [
-      {
-        data: Object.values(categoryFocusCounts),
-        backgroundColor: chartColors,
-        borderWidth: 0,
-      },
-    ],
-  };
-
-  // Focus Tracking Method
-  const focusMethodCounts = useMemo(() => {
-    let timerCount = 0;
-    let manualCount = 0;
-    focusHistory.forEach(s => {
-      if (s.isManual === false) {
-        timerCount++;
-      } else {
-        manualCount++;
-      }
-    });
-    return { timerCount, manualCount };
-  }, [focusHistory]);
-
-  const focusMethodData = {
-    labels: ['Timer Focused', 'Manually Logged'],
-    datasets: [
-      {
-        data: [focusMethodCounts.timerCount, focusMethodCounts.manualCount],
-        backgroundColor: ['#ffd700', '#64748b'], // Yellow for timer, Slate gray for manual
-        borderWidth: 0,
-      }
-    ]
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Total Focus Time" value={`${Math.floor(totalMins / 60)}h ${totalMins % 60}m`} />
-        <MiniStat label="Sessions Completed" value={focusHistory.length} />
-        <MiniStat label="Avg Session Length" value={`${avgMins}m`} />
-        <MiniStat label="Streak Shields Available" value={streakShields} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Focus Time (Last 7 Days)</h2>
-          <div className="flex-1 min-h-0">
-            {focusHistory.length > 0 ? (
-              <Bar 
-                data={{
-                  labels: last7Days.map(d => format(d, 'EEE')),
-                  datasets: [{
-                    label: "Minutes Focused",
-                    data: dailyFocusData,
-                    backgroundColor: "#f59e0b",
-                    borderRadius: 6
-                  }]
-                }}
-                options={baseChartOptions}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-600 text-center">
-                <Timer className="w-10 h-10 mb-2 opacity-20 text-amber-500" />
-                <p className="text-sm">No focus logs yet. Start focus sessions on your Dashboard!</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="glass-panel rounded-xl p-6 h-96 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Focus By Section</h2>
-          <div className="flex-1 min-h-0 relative">
-            {focusHistory.length > 0 ? (
-               <Doughnut data={categoryFocusData} options={doughnutOptions} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
-                <Timer className="w-10 h-10 mb-2 opacity-20 text-amber-500" />
-                <p className="text-sm">No data available</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Focus Method</h2>
-          <div className="flex-1 min-h-0 relative">
-            {focusHistory.length > 0 ? (
-               <Doughnut data={focusMethodData} options={doughnutOptions} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
-                <Timer className="w-10 h-10 mb-2 opacity-20 text-amber-500" />
-                <p className="text-sm">No data available</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 glass-panel rounded-xl p-6 border-slate-800 bg-slate-950/20 flex flex-col justify-center">
-          <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-            <Timer className="w-5 h-5 text-amber-500" /> Focus Method Insights
-          </h3>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            {focusMethodCounts.timerCount === 0 && focusMethodCounts.manualCount > 0 ? (
-              <>
-                All of your focus history has been logged via <strong>Manual Completion</strong>. 
-                Using the <strong>Focus Timer</strong> on your Dashboard for future sessions will help you track real-time focus sessions, capture hyper-focused flow states, and generate more precise productivity metrics!
-              </>
-            ) : focusMethodCounts.timerCount > 0 ? (
-              <>
-                You've logged <strong>{focusMethodCounts.timerCount}</strong> sessions using the Focus Timer and <strong>{focusMethodCounts.manualCount}</strong> sessions manually. 
-                Keep using the Focus Timer to build strong focus habits and gather high-fidelity data on your flow states!
-              </>
-            ) : (
-              <>
-                Start completing tasks or running focus sessions to analyze your preferred tracking methods.
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MoodAnalytics({ tasks }) {
-  const completedTasks = useMemo(() => tasks.filter(t => t.status === 'done'), [tasks]);
-
-  const avgMood = useMemo(() => {
-    const scored = completedTasks.filter(t => t.mood);
-    if (!scored.length) return "0.0";
-    return (scored.reduce((acc, t) => acc + t.mood, 0) / scored.length).toFixed(1);
-  }, [completedTasks]);
-
-  const moodCounts = useMemo(() => {
-    const counts = [0, 0, 0, 0, 0];
-    completedTasks.forEach(t => {
-      if (t.mood) counts[t.mood - 1]++;
-    });
-    return counts;
-  }, [completedTasks]);
-
-  const moodBySection = useMemo(() => {
-    const categories = {
-      'college': 'College Work',
-      'myspace': 'MySpace',
-      'dsa-java': 'DSA Java',
-      'web-dev': 'Web Dev',
-      'dsa-practice': 'DSA Practice',
-      'aiml': 'AIML',
-    };
-    const totals = {};
-    const counts = {};
-    
-    tasks.forEach(t => {
-      if (t.mood) {
-        const rawCat = (t.category || t.status || 'college').toLowerCase();
-        let normCat = 'college';
-        if (rawCat.includes('college')) normCat = 'college';
-        else if (rawCat.includes('myspace') || rawCat.includes('my space')) normCat = 'myspace';
-        else if (rawCat.includes('java')) normCat = 'dsa-java';
-        else if (rawCat.includes('web')) normCat = 'web-dev';
-        else if (rawCat.includes('practice')) normCat = 'dsa-practice';
-        else if (rawCat.includes('aiml') || rawCat.includes('ai')) normCat = 'aiml';
-
-        const label = categories[normCat] || 'AIML';
-        totals[label] = (totals[label] || 0) + t.mood;
-        counts[label] = (counts[label] || 0) + 1;
-      }
-    });
-
-    const labels = Object.keys(counts);
-    const avgs = labels.map(label => parseFloat((totals[label] / counts[label]).toFixed(2)));
-    
-    return { labels, avgs };
   }, [tasks]);
 
-  const moodBySectionData = {
-    labels: moodBySection.labels,
-    datasets: [
-      {
-        label: 'Avg Mood',
-        data: moodBySection.avgs,
-        backgroundColor: moodBySection.labels.map(label => {
-          const categories = {
-            'College Work': '#0000ff',
-            'MySpace': '#25d366',
-            'DSA Java': '#ffffff',
-            'Web Dev': '#ff0000',
-            'DSA Practice': '#ffd700',
-            'AIML': '#a855f7',
-          };
-          return categories[label] || '#a855f7';
-        }),
-        borderRadius: 4
-      }
-    ]
-  };
-
-  const horizontalBarOptions = {
-    ...baseChartOptions,
-    indexAxis: 'y',
-    plugins: {
-      legend: { display: false }
-    },
-    scales: {
-      y: {
-        grid: { display: false },
-        ticks: { color: "#94a3b8" }
-      },
-      x: {
-        min: 1,
-        max: 5,
-        grid: { color: "rgba(51, 65, 85, 0.5)" },
-        ticks: { stepSize: 1, color: "#94a3b8" }
-      }
-    }
-  };
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="Avg Mood Score" value={`${avgMood}/5`} />
-        <MiniStat label="Highest Mood" value={Math.max(...moodCounts) > 0 ? moodCounts.indexOf(Math.max(...moodCounts)) + 1 : 'N/A'} />
-        <MiniStat label="Activities Logged" value={completedTasks.filter(t => t.mood).length} />
-        <MiniStat label="Sentiment" value={parseFloat(avgMood) >= 4 ? "Great" : parseFloat(avgMood) >= 3 ? "Neutral" : completedTasks.length > 0 ? "Low" : "No Data"} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-xl p-6 h-80">
-          <h2 className="text-lg font-bold mb-4">Mood Distribution</h2>
-          {completedTasks.filter(t => t.mood).length > 0 ? (
-            <Bar 
-              data={{
-                labels: ["1 (Low)", "2", "3", "4", "5 (Great)"],
-                datasets: [{
-                  data: moodCounts,
-                  backgroundColor: ["#ff0000", "#ff8c00", "#ffd700", "#0000ff", "#25d366"],
-                  borderRadius: 4
-                }]
-              }}
-              options={baseChartOptions}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-600">
-              <Smile className="w-10 h-10 mb-2 opacity-20" />
-              <p>Log your mood in activities to see insights.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Mood by Section</h2>
-          {moodBySection.labels.length > 0 ? (
-            <div className="flex-1 min-h-0 relative">
-              <Bar data={moodBySectionData} options={horizontalBarOptions} />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center flex-1 text-slate-500 text-center">
-              <Smile className="w-10 h-10 mb-2 opacity-20" />
-              <p className="text-sm">Log mood values in your tasks to see this chart.</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="glass-panel rounded-xl p-8 bg-brand-primary/5 flex flex-col items-center justify-center text-center">
-        <Smile className="w-12 h-12 text-brand-primary mb-4" />
-        <h3 className="text-xl font-bold">Vibe Insights</h3>
-        {completedTasks.length > 0 ? (
-          <p className="text-sm text-slate-300 mt-2 max-w-xl leading-relaxed text-center">
-            Your average mood is **{avgMood}**. Keep tracking your tasks to see which activities align with your highest energy states!
-            {moodBySection.labels.length > 0 && (
-              <>
-                {" "}Specifically, check your <strong>Mood by Section</strong> chart to see which category keeps you most inspired.
-              </>
-            )}
-          </p>
-        ) : (
-          <p className="text-sm text-slate-500 mt-2">
-            Add your first activity to start analyzing your productivity mindset.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, danger = false }) {
-  return (
-    <div className="glass-panel rounded-xl p-4 text-center border-slate-800/50 hover:border-slate-700 transition-colors">
-      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
-        {label}
-      </p>
-      <p className={`text-2xl font-heading font-bold ${danger ? "text-brand-danger" : "text-slate-100"}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function PriorityAnalytics({ tasks }) {
-  const completedTasks = tasks.filter(t => t.status === 'done');
-  
-  const priorities = {
-    high: completedTasks.filter(t => (t.priority || 'medium') === 'high').length,
-    medium: completedTasks.filter(t => (t.priority || 'medium') === 'medium').length,
-    low: completedTasks.filter(t => (t.priority || 'medium') === 'low').length,
-  };
-
-  const totalHigh = tasks.filter(t => t.priority === 'high').length;
-  const highCompletionRate = totalHigh > 0 ? Math.round((priorities.high / totalHigh) * 100) : 0;
-
-  const PRIORITY_COLORS = {
-    high: '#ff0000',   // Red
-    medium: '#ffd700', // Yellow
-    low: '#25d366'     // Green
-  };
-
-  const chartData = {
-    labels: ['High', 'Medium', 'Low'],
-    datasets: [
-      {
-        data: [priorities.high, priorities.medium, priorities.low],
-        backgroundColor: [PRIORITY_COLORS.high, PRIORITY_COLORS.medium, PRIORITY_COLORS.low],
-        borderWidth: 0,
-      },
-    ],
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MiniStat label="High Priority Done" value={priorities.high} danger={true} />
-        <MiniStat label="High Priority Rate" value={`${highCompletionRate}%`} />
-        <MiniStat label="Medium Priority Done" value={priorities.medium} />
-        <MiniStat label="Low Priority Done" value={priorities.low} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Completed Priorities</h2>
-          <div className="flex-1 min-h-0 relative">
-            {completedTasks.length > 0 ? (
-               <Doughnut data={chartData} options={doughnutOptions} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
-                <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
-                <p>Complete tasks to see priority distribution.</p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="glass-panel rounded-xl p-6 h-80 flex flex-col">
-          <h2 className="text-lg font-bold mb-4">Priority Distribution</h2>
-          <div className="flex-1 min-h-0 relative">
-            {completedTasks.length > 0 ? (
-               <Bar 
-                 data={{
-                   labels: ['High', 'Medium', 'Low'],
-                   datasets: [{
-                     label: 'Completed Tasks',
-                     data: [priorities.high, priorities.medium, priorities.low],
-                     backgroundColor: [PRIORITY_COLORS.high, PRIORITY_COLORS.medium, PRIORITY_COLORS.low],
-                     borderRadius: 6
-                   }]
-                 }}
-                 options={baseChartOptions}
-               />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-650 absolute inset-0 text-center">
-                <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
-                <p>Complete tasks to see priority distribution.</p>
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="glass-panel rounded-3xl p-6 h-96 flex flex-col">
+      <h3 className="text-sm font-bold text-white mb-4">Priority Distribution</h3>
+      <div className="flex-1 min-h-0">
+        <Doughnut data={priorityData} options={doughnutOptions} />
       </div>
     </div>
   );

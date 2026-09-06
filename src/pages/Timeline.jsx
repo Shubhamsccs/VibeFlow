@@ -1,463 +1,224 @@
-import { useMemo, useState } from 'react';
-import { Search, History, Trash2, AlertCircle } from 'lucide-react';
-import { useTaskStore } from '../store/useTaskStore';
-import { format, parseISO, compareDesc } from 'date-fns';
-
-const parseMins = (dur) => {
-  if (!dur) return 0;
-  if (dur.includes(':')) {
-    const parts = dur.split(':').map(Number);
-    if (parts.length >= 2) return (parts[0] * 60) + parts[1];
-  }
-  const h = parseInt(dur.match(/(\d+)h/)?.[1] || 0);
-  const m = parseInt(dur.match(/(\d+)m/)?.[1] || 0);
-  return (h * 60) + m;
-};
-
-const normalizeCategory = (cat) => {
-  if (!cat) return "college";
-  const c = cat.toLowerCase().trim();
-  if (c === "todo" || c === "college" || c === "college work" || c === "college-work" || c === "done") return "college";
-  if (c === "myspace" || c === "my space" || c === "my-space") return "myspace";
-  if (c === "java" || c === "dsa-java" || c === "dsa java" || c === "dsa_java") return "dsa-java";
-  if (c === "webdev" || c === "web-dev" || c === "web dev" || c === "web_dev") return "web-dev";
-  if (c === "practice" || c === "dsa-practice" || c === "dsa practice" || c === "dsa_practice") return "dsa-practice";
-  if (c === "aiml" || c === "ai-ml" || c === "ai & ml" || c === "ai/ml" || c === "ai_ml" || c === "ai") return "aiml";
-  return c;
-};
-
-const getCategoryDisplayName = (catKey) => {
-  const norm = normalizeCategory(catKey);
-  switch (norm) {
-    case 'college': return 'College Work';
-    case 'myspace': return 'MySpace';
-    case 'dsa-java': return 'DSA Java';
-    case 'web-dev': return 'Web Development';
-    case 'dsa-practice': return 'DSA Practice';
-    case 'aiml': return 'AIML';
-    default:
-      return catKey.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  }
-};
-
-const DEFAULT_SECTIONS = [
-  { id: "college", title: "College Work", accent: "#0000ff" },
-  { id: "myspace", title: "MySpace", accent: "#25d366" },
-  { id: "dsa-java", title: "DSA Java", accent: "#ffffff" },
-  { id: "web-dev", title: "Web Development", accent: "#ff0000" },
-  { id: "dsa-practice", title: "DSA Practice", accent: "#ffd700" },
-  { id: "aiml", title: "AIML", accent: "#a855f7" },
-];
+import { useMemo, useState } from "react";
+import { Search, History, Trash2, Calendar, Clock, Zap, Coffee, Layers, Smile } from "lucide-react";
+import { useTaskStore } from "../store/useTaskStore";
+import { format, parseISO } from "date-fns";
 
 const FULL_HISTORY_ID = "__full_history__";
 
 export default function Timeline() {
-  const { tasks, deleteTask } = useTaskStore();
-  const [activeSection, setActiveSection] = useState("college");
-  const [taskToDelete, setTaskToDelete] = useState(null);
+  const { tasks, columns, deleteTask } = useTaskStore();
+  const [activeSection, setActiveSection] = useState(FULL_HISTORY_ID);
   const [searchQuery, setSearchQuery] = useState("");
 
   const isFullHistory = activeSection === FULL_HISTORY_ID;
 
-  // Build full list of sections including any custom categories found in tasks
+  // Build section filter list from dynamic columns
   const sections = useMemo(() => {
-    const customCats = new Set();
-    tasks.filter(t => t.status === 'done').forEach(t => {
-      const cat = normalizeCategory(t.category || t.status);
-      if (!DEFAULT_SECTIONS.some(s => s.id === cat)) {
-        customCats.add(cat);
+    return [
+      { id: FULL_HISTORY_ID, title: "All Completed", accent: "#6366f1" },
+      ...columns.map((c) => ({
+        id: c.id,
+        title: c.title,
+        accent: c.accent || "#6366f1",
+      })),
+    ];
+  }, [columns]);
+
+  // Filter completed tasks
+  const completedTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (t.status !== "done") return false;
+      if (!isFullHistory && t.category !== activeSection && t.status !== activeSection) {
+        return false;
       }
-    });
-
-    const customList = Array.from(customCats).map(cat => ({
-      id: cat,
-      title: getCategoryDisplayName(cat),
-      accent: "#94a3b8"
-    }));
-
-    return [...DEFAULT_SECTIONS, ...customList];
-  }, [tasks]);
-
-  const currentSection = sections.find(s => s.id === activeSection) || sections[0];
-
-  // Tasks for section-wise view
-  const sectionTasks = useMemo(() => {
-    if (isFullHistory) return [];
-    return tasks.filter(t => {
-      if (t.status !== 'done') return false;
-
-      const cat = normalizeCategory(t.category || t.status);
-      if (cat !== activeSection) return false;
-
-      const q = searchQuery.toLowerCase();
-      if (!q) return true;
-
-      const titleMatch = t.title?.toLowerCase().includes(q);
-      const catMatch = t.category?.toLowerCase().includes(q) || cat.includes(q);
-      return titleMatch || catMatch;
-    });
-  }, [tasks, activeSection, searchQuery, isFullHistory]);
-
-  // Tasks for full history view (all completed)
-  const fullHistoryTasks = useMemo(() => {
-    if (!isFullHistory) return [];
-    return tasks.filter(t => {
-      if (t.status !== 'done') return false;
-      const q = searchQuery.toLowerCase();
-      if (!q) return true;
-      const titleMatch = t.title?.toLowerCase().includes(q);
-      const cat = normalizeCategory(t.category || t.status);
-      const catMatch = t.category?.toLowerCase().includes(q) || cat.includes(q);
-      return titleMatch || catMatch;
-    });
-  }, [tasks, searchQuery, isFullHistory]);
-
-  // Format time string
-  const formatTimeDisplay = (timeStr) => {
-    if (!timeStr) return "";
-    const parts = timeStr.trim().split(/\s+/);
-    if (parts.length >= 3) return `${parts[1]} ${parts[2]}`;
-    if (parts.length === 2 && (parts[1] === 'AM' || parts[1] === 'PM')) return timeStr;
-
-    if (timeStr.includes(':') && !timeStr.includes('AM') && !timeStr.includes('PM')) {
-      try {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const h12 = hours % 12 || 12;
-        return `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-      } catch {
-        return timeStr;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q);
       }
-    }
-    return timeStr;
-  };
+      return true;
+    });
+  }, [tasks, isFullHistory, activeSection, searchQuery]);
 
-  const timeToMinutes = (timeStr) => {
-    if (!timeStr) return 0;
-    const parts = timeStr.trim().split(/\s+/);
-    let timePart = parts.length >= 3 ? parts[1] : parts[0];
-    let ampm = parts.length >= 3 ? parts[2] : (parts.length === 2 ? parts[1] : "");
-
-    try {
-      let [h, m] = timePart.split(':').map(Number);
-      if (ampm === 'PM' && h < 12) h += 12;
-      if (ampm === 'AM' && h === 12) h = 0;
-      return h * 60 + (m || 0);
-    } catch {
-      return 0;
-    }
-  };
-
-  // Helper: group tasks by date
-  const groupTasksByDate = (taskList) => {
+  // Group by completion date
+  const groupedTasks = useMemo(() => {
     const groups = {};
-    taskList.forEach(task => {
-      let dateStr = task.completedAt?.split('T')[0] || task.dueDate || task.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
-      if (dateStr.includes('/')) {
-        try {
-          dateStr = new Date(dateStr).toISOString().split('T')[0];
-        } catch {
-          dateStr = new Date().toISOString().split('T')[0];
-        }
-      }
+    completedTasks.forEach((task) => {
+      const dateStr =
+        task.completedAt?.split("T")[0] ||
+        task.dueDate ||
+        task.createdAt?.split("T")[0] ||
+        new Date().toISOString().split("T")[0];
 
-      if (!groups[dateStr]) {
-        groups[dateStr] = { date: dateStr, items: [], totalMinutes: 0 };
-      }
-      groups[dateStr].items.push(task);
-
-      const mins = task.actualDurationMinutes || 0;
-      if (mins > 0) {
-        groups[dateStr].totalMinutes += mins;
-      } else if (task.duration) {
-        groups[dateStr].totalMinutes += parseMins(task.duration);
-      }
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(task);
     });
 
-    const validGroups = Object.values(groups).filter(g => g.items.length > 0);
-    validGroups.forEach(group => {
-      group.items.sort((a, b) => timeToMinutes(b.startTime) - timeToMinutes(a.startTime));
-    });
+    // Sort dates descending
+    return Object.keys(groups)
+      .sort((a, b) => new Date(b) - new Date(a))
+      .map((date) => ({
+        date,
+        items: groups[date],
+      }));
+  }, [completedTasks]);
 
-    return validGroups.sort((a, b) => {
-      try { return compareDesc(parseISO(a.date), parseISO(b.date)); }
-      catch { return 0; }
-    });
-  };
-
-  // Group section tasks date-wise
-  const dateGroupedTasks = useMemo(() => {
-    return groupTasksByDate(sectionTasks);
-  }, [sectionTasks]);
-
-  // Group full history tasks date-wise
-  const dateGroupedFullHistory = useMemo(() => {
-    return groupTasksByDate(fullHistoryTasks);
-  }, [fullHistoryTasks]);
-
-  const getCategoryAccent = (cat) => {
-    switch (cat) {
-      case 'college': return { border: 'border-brand-primary', dot: 'bg-brand-primary shadow-[0_0_10px_#0000ff]' };
-      case 'myspace': return { border: 'border-brand-success', dot: 'bg-brand-success shadow-[0_0_10px_#25d366]' };
-      case 'dsa-java': return { border: 'border-white', dot: 'bg-white shadow-[0_0_10px_#ffffff]' };
-      case 'web-dev': return { border: 'border-brand-secondary', dot: 'bg-brand-secondary shadow-[0_0_10px_#ff0000]' };
-      case 'dsa-practice': return { border: 'border-brand-warning', dot: 'bg-brand-warning shadow-[0_0_10px_#ffd700]' };
-      case 'aiml': return { border: 'border-purple-500', dot: 'bg-purple-500 shadow-[0_0_10px_#a855f7]' };
-      default: return { border: 'border-slate-500', dot: 'bg-slate-500' };
-    }
-  };
-
-  const MoodHeatmap = ({ score }) => {
-    return (
-      <div className="flex gap-1" title={`Mood: ${score}/5`}>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div 
-            key={i} 
-            className={`w-3 h-3 rounded-sm transition-colors ${
-              i <= (score || 5) ? 'bg-brand-success' : 'bg-slate-800'
-            }`} 
-          />
-        ))}
-      </div>
-    );
-  };
-
-  const renderTaskItem = (item) => {
-    const category = normalizeCategory(item.category || item.status || 'college');
-    const { border, dot } = getCategoryAccent(category);
-
-    const plannedMinutes = parseMins(item.duration);
-    const actualMinutes = item.actualDurationMinutes || 0;
-    const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) : 0;
-
-    let badge = null;
-    if (plannedMinutes > 0) {
-      if (ratio >= 1.1) {
-        badge = { label: "Hyper-focused", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
-      } else if (ratio >= 0.9) {
-        badge = { label: "On Track", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
-      } else if (item.status === 'done') {
-        badge = { label: "Efficient", className: "bg-purple-500/10 text-purple-400 border-purple-500/20" };
-      } else {
-        badge = { label: "Under-focused", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
-      }
-    }
-
-    return (
-      <div key={item.id} className="flex items-center gap-8 group relative">
-        {/* Status Circle Icon */}
-        <div className="w-10 h-10 flex items-center justify-center relative z-10 shrink-0">
-          <div className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center bg-black transition-all group-hover:scale-110 shadow-lg ${border}`}>
-            <div className={`w-3 h-3 rounded-full ${dot}`} />
-          </div>
-        </div>
-
-        <div className="flex-1 bg-slate-900/20 hover:bg-slate-900/40 border border-slate-800/50 p-6 rounded-4xl transition-all group-hover:border-slate-700">
-          <div className="flex justify-between items-start gap-6">
-            <div className="flex-1">
-              <h4 className="text-xl font-black text-white group-hover:text-brand-primary transition-colors leading-none tracking-tight mb-3">
-                {item.title}
-              </h4>
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-black border border-slate-800 text-slate-400 min-w-[60px] text-center">
-                    {getCategoryDisplayName(category)}
-                  </span>
-                  {badge && (
-                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                  )}
-                  {item.mood && (
-                    <>
-                      <div className="w-1 h-1 rounded-full bg-slate-700" />
-                      <MoodHeatmap score={item.mood} />
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 flex-wrap text-slate-400">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                    <span>Duration:</span>
-                    <span className="text-xs font-black text-brand-success">
-                      {item.actualDuration || item.duration || "0m"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">Session Time</p>
-                <p className="text-sm font-black text-white whitespace-nowrap">
-                  {formatTimeDisplay(item.startTime)}
-                  {item.endTime && ` — ${formatTimeDisplay(item.endTime)}`}
-                </p>
-              </div>
-
-              <button 
-                onClick={() => setTaskToDelete(item)}
-                className="opacity-0 group-hover:opacity-100 p-3 bg-brand-danger/5 text-brand-danger/40 hover:text-brand-danger hover:bg-brand-danger/10 rounded-2xl transition-all border border-transparent hover:border-brand-danger/20 cursor-pointer"
-                title="Delete activity"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const activeDateGroups = isFullHistory ? dateGroupedFullHistory : dateGroupedTasks;
-  const activeTaskCount  = isFullHistory ? fullHistoryTasks.length : sectionTasks.length;
+  const totalMinutes = useMemo(() => {
+    return completedTasks.reduce((acc, t) => acc + (t.actualDurationMinutes || 45), 0);
+  }, [completedTasks]);
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-fade-in pb-12 bg-black">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* Header & Stats */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Timeline</h1>
-          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-1">Your productivity journey</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Execution Timeline
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Chronological audit of completed focus blocks and activities.
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Find activity..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand-primary transition-all w-64 text-white"
-            />
+          <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-white/[0.08] text-xs">
+            <span className="text-slate-400">Total Logged: </span>
+            <strong className="text-white font-bold">
+              {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m
+            </strong>
+          </div>
+          <div className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+            {completedTasks.length} Done
           </div>
         </div>
       </div>
 
-      {/* Section Tab Selector — Full History tab first, then section tabs */}
-      <div className="flex gap-2 p-2 bg-slate-900/50 rounded-2xl border border-slate-800/80 overflow-x-auto scrollbar-none shadow-lg shrink-0">
-        {/* Full History tab */}
-        <button
-          onClick={() => setActiveSection(FULL_HISTORY_ID)}
-          className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 border cursor-pointer ${
-            isFullHistory
-              ? "bg-white text-black border-white shadow-xl"
-              : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800"
-          }`}
-        >
-          <History className="w-3.5 h-3.5" />
-          Full History
-        </button>
-
-        {/* Divider */}
-        <div className="w-px bg-slate-800 my-1.5 shrink-0" />
-
-        {/* Section tabs */}
-        {sections.map((sec) => (
-          <button
-            key={sec.id}
-            onClick={() => setActiveSection(sec.id)}
-            className={`flex items-center gap-3 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 border cursor-pointer ${
-              activeSection === sec.id
-                ? "bg-white text-black border-white shadow-xl"
-                : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sec.accent }} />
-            {sec.title}
-          </button>
-        ))}
-      </div>
-
-      {/* Section / Full History Header Card */}
-      <div className="p-6 bg-slate-950/50 rounded-3xl border border-slate-800/50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {isFullHistory ? (
-            <>
-              <div className="w-1.5 h-8 rounded-full bg-gradient-to-b from-brand-primary via-purple-500 to-brand-success" />
-              <h2 className="text-xl font-black text-white tracking-tighter uppercase">Full History</h2>
-            </>
-          ) : (
-            <>
-              <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: currentSection.accent }} />
-              <h2 className="text-xl font-black text-white tracking-tighter uppercase">{currentSection.title}</h2>
-            </>
-          )}
+      {/* Filter Tabs & Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+          {sections.map((sec) => {
+            const isSel = activeSection === sec.id;
+            return (
+              <button
+                key={sec.id}
+                onClick={() => setActiveSection(sec.id)}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  isSel
+                    ? "bg-brand-primary text-white shadow-sm"
+                    : "bg-slate-900 border border-white/[0.06] text-slate-400 hover:text-white"
+                }`}
+              >
+                {sec.id !== FULL_HISTORY_ID && (
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sec.accent }} />
+                )}
+                <span>{sec.title}</span>
+              </button>
+            );
+          })}
         </div>
-        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
-          {activeTaskCount} {activeTaskCount === 1 ? 'Activity' : 'Activities'}
-        </p>
+
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter timeline..."
+            className="w-full sm:w-56 bg-slate-900 border border-white/[0.08] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-primary"
+          />
+        </div>
       </div>
 
-      {/* Date-wise Timeline Content */}
-      <div className="flex-1 space-y-12">
-        {activeDateGroups.length > 0 ? (
-          activeDateGroups.map((group) => (
-            <div key={group.date} className="relative">
-              {/* Date Header */}
-              <div className="flex items-center gap-4 mb-8">
-                <div className="bg-white text-black px-4 py-1.5 rounded-full font-black text-xs uppercase tracking-widest shadow-xl">
-                  {format(parseISO(group.date), 'EEEE, MMM d')}
-                </div>
-                <div className="h-px flex-1 bg-slate-800" />
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800">
-                  Total: {Math.floor(group.totalMinutes / 60)}h {group.totalMinutes % 60}m
-                </div>
-              </div>
-
-              <div className="space-y-10 pl-2">
-                {group.items.map((item) => renderTaskItem(item))}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center py-32 text-slate-700">
-            <History className="w-20 h-20 mb-6 opacity-5" />
-            <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">No History Found</h3>
-            <p className="text-sm mt-2 font-bold text-slate-600 uppercase tracking-widest">
-              {searchQuery
-                ? 'Try clearing your search query'
-                : isFullHistory
-                  ? 'No completed activities yet'
-                  : `No completed activities in ${currentSection.title}`}
+      {/* Timeline List */}
+      <div className="space-y-6 pt-2">
+        {groupedTasks.length === 0 ? (
+          <div className="glass-panel rounded-3xl p-12 text-center">
+            <History className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-40" />
+            <h4 className="text-sm font-bold text-slate-300">No completed items found</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              Mark tasks as done or complete focus sessions to build your timeline.
             </p>
           </div>
+        ) : (
+          groupedTasks.map((group) => {
+            let formattedDate = group.date;
+            try {
+              formattedDate = format(parseISO(group.date), "EEEE, MMMM d, yyyy");
+            } catch {
+              // fallback
+            }
+
+            return (
+              <div key={group.date} className="space-y-3">
+                {/* Date Heading */}
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 sticky top-16 py-1 bg-slate-950/90 backdrop-blur-md z-10">
+                  <Calendar className="w-3.5 h-3.5 text-brand-primary" />
+                  <span>{formattedDate}</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    ({group.items.length} {group.items.length === 1 ? "activity" : "activities"})
+                  </span>
+                </div>
+
+                {/* Items Container */}
+                <div className="space-y-2 border-l-2 border-white/[0.06] ml-2 pl-4">
+                  {group.items.map((task) => {
+                    const energyBadge = {
+                      deep: { icon: Zap, label: "Deep", color: "text-brand-primary" },
+                      standard: { icon: Layers, label: "Standard", color: "text-brand-cyan" },
+                      light: { icon: Coffee, label: "Quick", color: "text-amber-400" },
+                    }[task.energyLevel || "standard"];
+                    const EnergyIcon = energyBadge.icon;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="p-3.5 rounded-2xl bg-slate-900/70 border border-white/[0.06] hover:border-white/[0.14] transition-all flex items-center justify-between gap-3 group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-bold text-white truncate">
+                              {task.title}
+                            </span>
+                            <span className={`text-[9px] font-semibold flex items-center gap-0.5 ${energyBadge.color}`}>
+                              <EnergyIcon className="w-2.5 h-2.5" /> {energyBadge.label}
+                            </span>
+                          </div>
+                          {task.description && (
+                            <p className="text-[11px] text-slate-400 line-clamp-1">
+                              {task.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 text-xs">
+                          {task.mood && (
+                            <div className="flex items-center gap-1 text-amber-400 text-[11px]">
+                              <Smile className="w-3 h-3" />
+                              <span>{task.mood}/5</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-1 text-slate-400 text-[11px]">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            <span>{task.actualDuration || task.duration || "45m"}</span>
+                          </div>
+
+                          <button
+                            onClick={() => deleteTask(task.id)}
+                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            title="Delete entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
-
-      {/* In-App Delete Confirmation Modal */}
-      {taskToDelete && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-4xl p-10 max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
-            <div className="w-20 h-20 bg-brand-danger/10 rounded-3xl flex items-center justify-center mb-8 mx-auto">
-              <AlertCircle className="w-10 h-10 text-brand-danger" />
-            </div>
-            <h3 className="text-3xl font-black text-white tracking-tighter mb-3 text-center uppercase">Delete Activity?</h3>
-            <p className="text-slate-400 mb-10 text-center leading-relaxed">
-              Are you sure you want to delete <span className="text-white font-bold">"{taskToDelete.title}"</span>? 
-              This will permanently remove it from your history.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setTaskToDelete(null)}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 bg-slate-800 hover:text-white transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  deleteTask(taskToDelete.id);
-                  setTaskToDelete(null);
-                }}
-                className="px-6 py-5 rounded-2xl font-black uppercase text-xs tracking-widest bg-brand-danger text-white hover:scale-105 transition-all shadow-xl shadow-brand-danger/20 cursor-pointer"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

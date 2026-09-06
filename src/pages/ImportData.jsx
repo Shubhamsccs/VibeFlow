@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, Table } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, Table } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
 
 export default function ImportData() {
@@ -38,7 +38,7 @@ export default function ImportData() {
 
       setCsvData(results);
       setStatus({ type: 'success', message: `Successfully parsed ${results.length} records.` });
-    } catch (error) {
+    } catch {
       setStatus({ type: 'error', message: 'Failed to parse CSV. Please check the format.' });
     }
   };
@@ -131,16 +131,15 @@ export default function ImportData() {
     }
   };
 
+  const columns = useTaskStore((state) => state.columns);
+
   const mapStatus = (activityName) => {
+    if (!activityName) return columns[0]?.id || 'backlog';
     const name = activityName.toLowerCase().trim();
-    if (name.includes('college')) return 'college';
-    if (name.includes('my space') || name.includes('myspace')) return 'myspace';
-    if (name.includes('java') || name.includes('dsa java')) return 'dsa-java';
-    if (name.includes('web development') || name.includes('web dev')) return 'web-dev';
-    if (name.includes('practice') || name.includes('dsa practice')) return 'dsa-practice';
-    if (name.includes('aiml') || name.includes('ai & ml') || name.includes('ai/ml') || name.includes('ai')) return 'aiml';
-    if (name.includes('done') || name.includes('finished')) return 'done';
-    return 'college'; // Default to first column
+    if (name.includes('done') || name.includes('finished') || name.includes('complete')) return 'done';
+    const matched = columns.find((c) => c.title.toLowerCase() === name || name.includes(c.title.toLowerCase()));
+    if (matched) return matched.id;
+    return columns[0]?.id || 'backlog';
   };
 
   return (
