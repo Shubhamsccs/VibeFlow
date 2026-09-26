@@ -1,4 +1,30 @@
-# Logs
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Tauri & Rust build artifacts
+src-tauri/target
+src-tauri/gen
+
+# SQLite local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Design specs, agent tools & temporary instructions (per request)
+.agents
+.impeccable
+PRODUCT.md
+DESIGN.md
+
+# Logs & lint scratch files
 logs
 *.log
 npm-debug.log*
@@ -6,11 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
+eslint_output.txt
 
 # Editor directories and files
 .vscode/*
