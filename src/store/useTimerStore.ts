@@ -366,6 +366,11 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       }
     }
 
+    // Increment active subject seconds
+    import('./useSubjectStore').then(({ useSubjectStore }) => {
+      useSubjectStore.getState().tickActiveSubject();
+    });
+
     if (state.mode === 'stopwatch') {
       set({
         totalElapsedSec: newElapsed,

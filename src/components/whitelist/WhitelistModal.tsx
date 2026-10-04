@@ -116,7 +116,7 @@ export const WhitelistModal: React.FC<WhitelistModalProps> = ({ isOpen, onClose 
               <select
                 value={ruleType}
                 onChange={(e) => setRuleType(e.target.value as RuleType)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-sm text-white outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-sm text-white outline-none focus:border-indigo-500 appearance-none cursor-pointer"
               >
                 <option value="process">Executable (.exe)</option>
                 <option value="window_title">Browser Title Keyword</option>
@@ -130,7 +130,7 @@ export const WhitelistModal: React.FC<WhitelistModalProps> = ({ isOpen, onClose 
               <select
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-sm text-white outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-sm text-white outline-none focus:border-indigo-500 appearance-none cursor-pointer"
               >
                 <option value="global">Global (All Subjects)</option>
                 {subjects.map((s) => (

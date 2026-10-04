@@ -137,7 +137,7 @@ export const TimerView: React.FC<TimerViewProps> = ({
               value={activeSubject?.id || ''}
               onChange={(e) => setActiveSubjectId(e.target.value)}
               disabled={isRunning}
-              className="bg-transparent text-sm font-medium text-slate-200 outline-none cursor-pointer pr-2 disabled:opacity-60"
+              className="bg-transparent text-sm font-medium text-slate-200 outline-none cursor-pointer pr-1 disabled:opacity-60 appearance-none"
             >
               {subjects.map((subj) => (
                 <option key={subj.id} value={subj.id} className="bg-slate-900 text-white">

@@ -98,7 +98,8 @@ export async function initDb(): Promise<void> {
       INSERT OR IGNORE INTO app_settings (key, value) VALUES 
       ('rollover_time', '04:00'),
       ('week_start_day', '1'),
-      ('grace_period_sec', '30');
+      ('grace_period_sec', '30'),
+      ('daily_target', '6h');
     `);
   } else {
     // Seed browser mock defaults
@@ -107,25 +108,14 @@ export async function initDb(): Promise<void> {
         rollover_time: '04:00',
         week_start_day: '1',
         grace_period_sec: '30',
+        daily_target: '6h',
       });
     }
     if (!localStorage.getItem(STORAGE_PREFIX + 'subjects')) {
-      const defaultSubjects: Subject[] = [
-        { id: 'subj-1', name: 'Mathematics & Calculus', color_hex: '#6366f1', created_at: Date.now() },
-        { id: 'subj-2', name: 'Computer Systems & OS', color_hex: '#06b6d4', created_at: Date.now() },
-        { id: 'subj-3', name: 'Physics & Thermodynamics', color_hex: '#10b981', created_at: Date.now() },
-      ];
-      setLocalItem('subjects', defaultSubjects);
+      setLocalItem('subjects', []);
     }
     if (!localStorage.getItem(STORAGE_PREFIX + 'whitelist_rules')) {
-      const defaultRules: WhitelistRule[] = [
-        { id: 'rule-1', subject_id: null, rule_type: 'process', pattern: 'code.exe' },
-        { id: 'rule-2', subject_id: null, rule_type: 'process', pattern: 'obsidian.exe' },
-        { id: 'rule-3', subject_id: null, rule_type: 'window_title', pattern: 'Khan Academy' },
-        { id: 'rule-4', subject_id: null, rule_type: 'window_title', pattern: 'LeetCode' },
-        { id: 'rule-5', subject_id: null, rule_type: 'window_title', pattern: 'Coursera' },
-      ];
-      setLocalItem('whitelist_rules', defaultRules);
+      setLocalItem('whitelist_rules', []);
     }
   }
 }
@@ -159,13 +149,16 @@ export async function saveSubject(subject: Subject): Promise<void> {
 export async function deleteSubject(id: string): Promise<void> {
   const db = await getDb();
   if (db) {
-    await db.execute('DELETE FROM subjects WHERE id = $1', [id]);
+    await db.execute('DELETE FROM study_sessions WHERE subject_id = $1', [id]);
     await db.execute('DELETE FROM whitelist_rules WHERE subject_id = $1', [id]);
+    await db.execute('DELETE FROM subjects WHERE id = $1', [id]);
   } else {
     const list = getLocalItem<Subject[]>('subjects', []).filter((s) => s.id !== id);
     setLocalItem('subjects', list);
     const rules = getLocalItem<WhitelistRule[]>('whitelist_rules', []).filter((r) => r.subject_id !== id);
     setLocalItem('whitelist_rules', rules);
+    const sessions = getLocalItem<StudySession[]>('study_sessions', []).filter((sess) => sess.subject_id !== id);
+    setLocalItem('study_sessions', sessions);
   }
 }
 
@@ -259,6 +252,16 @@ export async function saveStudySession(session: StudySession): Promise<void> {
     const idx = list.findIndex((s) => s.id === session.id);
     if (idx >= 0) list[idx] = session;
     else list.push(session);
+    setLocalItem('study_sessions', list);
+  }
+}
+
+export async function deleteStudySession(id: string): Promise<void> {
+  const db = await getDb();
+  if (db) {
+    await db.execute('DELETE FROM study_sessions WHERE id = $1', [id]);
+  } else {
+    const list = getLocalItem<StudySession[]>('study_sessions', []).filter((s) => s.id !== id);
     setLocalItem('study_sessions', list);
   }
 }

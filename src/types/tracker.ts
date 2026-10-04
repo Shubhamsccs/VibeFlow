@@ -5,6 +5,7 @@ export interface Subject {
   name: string;
   color_hex: string;
   created_at: number;
+  seconds_today?: number;
 }
 
 export type RuleType = 'process' | 'window_title';
